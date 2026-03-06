@@ -1,0 +1,42 @@
+name: AgenticDT
+
+options:
+  bundleIdPrefix: com.agenticdt
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+
+settings:
+  SWIFT_VERSION: "5.9"
+  ENABLE_PREVIEWS: YES
+
+targets:
+  AgenticDT:
+    type: application
+    platform: iOS
+    sources:
+      - path: AgenticDT
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.agenticdt.app
+      PRODUCT_NAME: AgenticDT
+      INFOPLIST_FILE: AgenticDT/Info.plist
+      GENERATE_INFOPLIST_FILE: YES
+      MARKETING_VERSION: "1.0"
+      CURRENT_PROJECT_VERSION: "1"
+      SWIFT_EMIT_LOC_STRINGS: YES
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    scheme:
+      testTargets:
+        - AgenticDTTests
+      gatherCoverageData: true
+
+  AgenticDTTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - AgenticDTTests
+    dependencies:
+      - target: AgenticDT
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.agenticdt.tests

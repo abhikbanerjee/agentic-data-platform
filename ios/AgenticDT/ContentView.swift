@@ -4,53 +4,163 @@ struct ContentView: View {
     @EnvironmentObject var vm: PlatformViewModel
     @State private var selectedTab: Tab = .dashboard
 
+    // 5 grouped tabs covering all 10 CCB sections
     enum Tab: String, CaseIterable {
-        case dashboard  = "Dashboard"
-        case publish    = "Publish"
-        case pipelines  = "Pipelines"
-        case semantic   = "Semantic"
-        case quality    = "Quality"
-        case workspace  = "Agent"
+        case dashboard   = "Home"
+        case dataFlow    = "Data Flow"
+        case intelligence = "Intelligence"
+        case governance  = "Governance"
+        case aiOps       = "AI & Ops"
 
         var systemImage: String {
             switch self {
-            case .dashboard:  return "square.grid.2x2.fill"
-            case .publish:    return "arrow.up.circle.fill"
-            case .pipelines:  return "arrow.triangle.branch"
-            case .semantic:   return "brain"
-            case .quality:    return "checkmark.shield.fill"
-            case .workspace:  return "bubble.left.and.bubble.right.fill"
+            case .dashboard:    return "square.grid.2x2.fill"
+            case .dataFlow:     return "arrow.triangle.branch"
+            case .intelligence: return "brain"
+            case .governance:   return "lock.shield.fill"
+            case .aiOps:        return "cpu.fill"
             }
         }
     }
 
     var body: some View {
         TabView(selection: $selectedTab) {
+
+            // ── Tab 1: Home / Dashboard ──────────────────────────
             DashboardView(selectedTab: $selectedTab)
                 .tabItem { Label(Tab.dashboard.rawValue, systemImage: Tab.dashboard.systemImage) }
                 .tag(Tab.dashboard)
 
-            PublishingView()
-                .tabItem { Label(Tab.publish.rawValue, systemImage: Tab.publish.systemImage) }
-                .tag(Tab.publish)
+            // ── Tab 2: Data Flow (Ingestion + Pipelines + Storage) ─
+            NavigationStack {
+                List {
+                    Section("Ingestion") {
+                        NavigationLink { IngestionHubView() } label: {
+                            SectionRow(icon: "bolt.fill", color: .cyan,
+                                       title: "Ingestion Hub",
+                                       subtitle: "Confluent/MSK · Flink/Spark · Real-time")
+                        }
+                        NavigationLink { PublishingView() } label: {
+                            SectionRow(icon: "arrow.up.circle.fill", color: .blue,
+                                       title: "Agentic Publishing",
+                                       subtitle: "Auto-publish & register datasets")
+                        }
+                    }
+                    Section("Processing & Storage") {
+                        NavigationLink { PipelinesView() } label: {
+                            SectionRow(icon: "arrow.triangle.branch", color: .purple,
+                                       title: "Pipelines & Orchestration",
+                                       subtitle: "Airflow · Control-M · Self-healing DAGs")
+                        }
+                        NavigationLink { StorageView() } label: {
+                            SectionRow(icon: "externaldrive.fill", color: .teal,
+                                       title: "Storage & Warehouse",
+                                       subtitle: "S3 Lake · Snowflake · Teradata · Feature Store")
+                        }
+                    }
+                }
+                .navigationTitle("Data Flow")
+                .navigationBarTitleDisplayMode(.large)
+            }
+            .tabItem { Label(Tab.dataFlow.rawValue, systemImage: Tab.dataFlow.systemImage) }
+            .tag(Tab.dataFlow)
 
-            PipelinesView()
-                .tabItem { Label(Tab.pipelines.rawValue, systemImage: Tab.pipelines.systemImage) }
-                .tag(Tab.pipelines)
+            // ── Tab 3: Intelligence (Semantic + Quality) ─────────
+            NavigationStack {
+                List {
+                    Section("Understanding") {
+                        NavigationLink { SemanticEngineView() } label: {
+                            SectionRow(icon: "brain", color: .indigo,
+                                       title: "Semantic Engine",
+                                       subtitle: "Knowledge graph · Catalog · Lineage · Discovery")
+                        }
+                        NavigationLink { DataQualityView() } label: {
+                            SectionRow(icon: "checkmark.shield.fill", color: .green,
+                                       title: "Data Quality",
+                                       subtitle: "Agentic checks · Auto-remediation · Trends")
+                        }
+                    }
+                }
+                .navigationTitle("Intelligence")
+                .navigationBarTitleDisplayMode(.large)
+            }
+            .tabItem { Label(Tab.intelligence.rawValue, systemImage: Tab.intelligence.systemImage) }
+            .tag(Tab.intelligence)
 
-            SemanticEngineView()
-                .tabItem { Label(Tab.semantic.rawValue, systemImage: Tab.semantic.systemImage) }
-                .tag(Tab.semantic)
+            // ── Tab 4: Governance (Mesh + Access Control) ────────
+            NavigationStack {
+                List {
+                    Section("Access & Policy") {
+                        NavigationLink { GovernanceView() } label: {
+                            SectionRow(icon: "lock.shield.fill", color: .orange,
+                                       title: "Governance & Mesh",
+                                       subtitle: "Immuta · Data Mesh · Entitlements · Tagging")
+                        }
+                    }
+                }
+                .navigationTitle("Governance")
+                .navigationBarTitleDisplayMode(.large)
+            }
+            .tabItem { Label(Tab.governance.rawValue, systemImage: Tab.governance.systemImage) }
+            .tag(Tab.governance)
 
-            DataQualityView()
-                .tabItem { Label(Tab.quality.rawValue, systemImage: Tab.quality.systemImage) }
-                .tag(Tab.quality)
-
-            AnalystWorkspaceView()
-                .tabItem { Label(Tab.workspace.rawValue, systemImage: Tab.workspace.systemImage) }
-                .tag(Tab.workspace)
+            // ── Tab 5: AI & Ops (ML Platform + Workspace + Ops) ──
+            NavigationStack {
+                List {
+                    Section("AI & Analytics") {
+                        NavigationLink { MLPlatformView() } label: {
+                            SectionRow(icon: "cpu.fill", color: .purple,
+                                       title: "ML Platform",
+                                       subtitle: "Infinite AI · Model lifecycle · Vector DB")
+                        }
+                        NavigationLink { AnalystWorkspaceView() } label: {
+                            SectionRow(icon: "bubble.left.and.bubble.right.fill", color: Color("AccentCyan"),
+                                       title: "Analyst Workspace",
+                                       subtitle: "NL→SQL · Athena · Starburst · Deploy to prod")
+                        }
+                    }
+                    Section("Operations") {
+                        NavigationLink { OperationsView() } label: {
+                            SectionRow(icon: "gauge.with.dots.needle.67percent", color: .red,
+                                       title: "Operations",
+                                       subtitle: "E2E monitoring · Observability · Alerts")
+                        }
+                    }
+                }
+                .navigationTitle("AI & Ops")
+                .navigationBarTitleDisplayMode(.large)
+            }
+            .tabItem { Label(Tab.aiOps.rawValue, systemImage: Tab.aiOps.systemImage) }
+            .tag(Tab.aiOps)
         }
         .accentColor(Color("AccentCyan"))
+    }
+}
+
+// MARK: - Section Row (used in grouped tab lists)
+private struct SectionRow: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 42, height: 42)
+                .background(color)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline).bold()
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

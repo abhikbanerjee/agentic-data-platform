@@ -259,7 +259,7 @@ private struct EntityDetailCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("ATTRIBUTES").font(.caption2).bold().foregroundColor(.secondary)
                     FlowLayout(items: entity.attributes) { attr in
-                        Text(attr).font(.system(.caption2, design: .monospaced))
+                        Text(attr.value).font(.system(.caption2, design: .monospaced))
                             .padding(.horizontal, 8).padding(.vertical, 3)
                             .background(Color(.systemGray6))
                             .clipShape(RoundedRectangle(cornerRadius: 6))

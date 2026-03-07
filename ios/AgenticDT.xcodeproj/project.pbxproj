@@ -1,0 +1,467 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 63;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3E8A7BC63BABE32B659BAF48 /* SemanticEngineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B4C126DD72F7185D93A944 /* SemanticEngineView.swift */; };
+		3EE52B4ECAD472A9F84432B0 /* PipelinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533E257B83B8C5BF0D7F8298 /* PipelinesView.swift */; };
+		4035A1C798358F41CA760814 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07553BC3C0BED1C7CDE2066E /* ContentView.swift */; };
+		4D3C0C132A91B866798827E0 /* PublishingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F233143D52A3DEF8E0B03678 /* PublishingView.swift */; };
+		50CF8D90483FBFEE08817556 /* DataQualityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2477B65B368C96D120770216 /* DataQualityView.swift */; };
+		66D879AF8FB529EABEE84025 /* AgenticDTApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAEDEFC1A057F01116E2E8C /* AgenticDTApp.swift */; };
+		7DC40B694FFF6A625B036CB6 /* AnalystWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BEE5B5E1C49C7958CE46953 /* AnalystWorkspaceView.swift */; };
+		94A3C91EDAA1C0BECCD740A9 /* AgenticDTTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DE91C71F5E54FB11B4F44B /* AgenticDTTests.swift */; };
+		9ACE7B0694E7476FCDB0FF85 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B11C51A1DE8C86A0CFE19EE5 /* Assets.xcassets */; };
+		BE04547861DF382CDF0D4156 /* DataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A5D6D07DD8C3D31798D0466 /* DataModels.swift */; };
+		C3B0448D6DD81F42900D7082 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC12E6857F5EA3E8637F6D /* DashboardView.swift */; };
+		F12E0CF82104B1D5775EA719 /* PlatformViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72569500193D4A05E483E42F /* PlatformViewModel.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C7F8309E90385EDABF88EFA3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1B0D06ED5FE7CEDB7E723BE8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B4A179D495F006B5A9AE8268;
+			remoteInfo = AgenticDT;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		00A9C47B43F36C4185674104 /* AgenticDT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgenticDT.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		07553BC3C0BED1C7CDE2066E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1EDC12E6857F5EA3E8637F6D /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		2477B65B368C96D120770216 /* DataQualityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataQualityView.swift; sourceTree = "<group>"; };
+		2482CF141ED2B3A767698321 /* AgenticDTTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AgenticDTTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2BEE5B5E1C49C7958CE46953 /* AnalystWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalystWorkspaceView.swift; sourceTree = "<group>"; };
+		2FAEDEFC1A057F01116E2E8C /* AgenticDTApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgenticDTApp.swift; sourceTree = "<group>"; };
+		533E257B83B8C5BF0D7F8298 /* PipelinesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelinesView.swift; sourceTree = "<group>"; };
+		72569500193D4A05E483E42F /* PlatformViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformViewModel.swift; sourceTree = "<group>"; };
+		87DE91C71F5E54FB11B4F44B /* AgenticDTTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgenticDTTests.swift; sourceTree = "<group>"; };
+		8A5D6D07DD8C3D31798D0466 /* DataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataModels.swift; sourceTree = "<group>"; };
+		B11C51A1DE8C86A0CFE19EE5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F233143D52A3DEF8E0B03678 /* PublishingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishingView.swift; sourceTree = "<group>"; };
+		F2B4C126DD72F7185D93A944 /* SemanticEngineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticEngineView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0BA262950461B5D7F382B29A /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8A5D6D07DD8C3D31798D0466 /* DataModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		31E666C2597BC62D98AFBBFF /* AgenticDTTests */ = {
+			isa = PBXGroup;
+			children = (
+				87DE91C71F5E54FB11B4F44B /* AgenticDTTests.swift */,
+			);
+			path = AgenticDTTests;
+			sourceTree = "<group>";
+		};
+		890AEE85061D58E109EAE0B0 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				72569500193D4A05E483E42F /* PlatformViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		93CA6C760FF0B67897C62CE8 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				2BEE5B5E1C49C7958CE46953 /* AnalystWorkspaceView.swift */,
+				1EDC12E6857F5EA3E8637F6D /* DashboardView.swift */,
+				2477B65B368C96D120770216 /* DataQualityView.swift */,
+				533E257B83B8C5BF0D7F8298 /* PipelinesView.swift */,
+				F233143D52A3DEF8E0B03678 /* PublishingView.swift */,
+				F2B4C126DD72F7185D93A944 /* SemanticEngineView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		AE9EE493C4444963F3E99892 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				00A9C47B43F36C4185674104 /* AgenticDT.app */,
+				2482CF141ED2B3A767698321 /* AgenticDTTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CCD83A2C4027688BDDD64F6C /* AgenticDT */ = {
+			isa = PBXGroup;
+			children = (
+				2FAEDEFC1A057F01116E2E8C /* AgenticDTApp.swift */,
+				B11C51A1DE8C86A0CFE19EE5 /* Assets.xcassets */,
+				07553BC3C0BED1C7CDE2066E /* ContentView.swift */,
+				0BA262950461B5D7F382B29A /* Models */,
+				890AEE85061D58E109EAE0B0 /* ViewModels */,
+				93CA6C760FF0B67897C62CE8 /* Views */,
+			);
+			path = AgenticDT;
+			sourceTree = "<group>";
+		};
+		D7B557C6A8EC5D48EDDFEAC1 = {
+			isa = PBXGroup;
+			children = (
+				CCD83A2C4027688BDDD64F6C /* AgenticDT */,
+				31E666C2597BC62D98AFBBFF /* AgenticDTTests */,
+				AE9EE493C4444963F3E99892 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		69DF067DC900E5B745FEE9CF /* AgenticDTTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 91DF9CB19EA37A0545E878A1 /* Build configuration list for PBXNativeTarget "AgenticDTTests" */;
+			buildPhases = (
+				719E135CAAB24A2D86C87BE7 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				946A5301EFD5BF112AA2291E /* PBXTargetDependency */,
+			);
+			name = AgenticDTTests;
+			packageProductDependencies = (
+			);
+			productName = AgenticDTTests;
+			productReference = 2482CF141ED2B3A767698321 /* AgenticDTTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B4A179D495F006B5A9AE8268 /* AgenticDT */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3DDCCCAA7987DF4D64E1AD62 /* Build configuration list for PBXNativeTarget "AgenticDT" */;
+			buildPhases = (
+				CD19BECA17585B19DB56B77A /* Sources */,
+				C874FA32C54CEC3D4A7CB605 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AgenticDT;
+			packageProductDependencies = (
+			);
+			productName = AgenticDT;
+			productReference = 00A9C47B43F36C4185674104 /* AgenticDT.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1B0D06ED5FE7CEDB7E723BE8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+			};
+			buildConfigurationList = 701F393DDE6A4B71D35B5E44 /* Build configuration list for PBXProject "AgenticDT" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D7B557C6A8EC5D48EDDFEAC1;
+			minimizedProjectReferenceProxies = 1;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B4A179D495F006B5A9AE8268 /* AgenticDT */,
+				69DF067DC900E5B745FEE9CF /* AgenticDTTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C874FA32C54CEC3D4A7CB605 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9ACE7B0694E7476FCDB0FF85 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		719E135CAAB24A2D86C87BE7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				94A3C91EDAA1C0BECCD740A9 /* AgenticDTTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CD19BECA17585B19DB56B77A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				66D879AF8FB529EABEE84025 /* AgenticDTApp.swift in Sources */,
+				7DC40B694FFF6A625B036CB6 /* AnalystWorkspaceView.swift in Sources */,
+				4035A1C798358F41CA760814 /* ContentView.swift in Sources */,
+				C3B0448D6DD81F42900D7082 /* DashboardView.swift in Sources */,
+				BE04547861DF382CDF0D4156 /* DataModels.swift in Sources */,
+				50CF8D90483FBFEE08817556 /* DataQualityView.swift in Sources */,
+				3EE52B4ECAD472A9F84432B0 /* PipelinesView.swift in Sources */,
+				F12E0CF82104B1D5775EA719 /* PlatformViewModel.swift in Sources */,
+				4D3C0C132A91B866798827E0 /* PublishingView.swift in Sources */,
+				3E8A7BC63BABE32B659BAF48 /* SemanticEngineView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		946A5301EFD5BF112AA2291E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B4A179D495F006B5A9AE8268 /* AgenticDT */;
+			targetProxy = C7F8309E90385EDABF88EFA3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		4E5E7AFFB75CF31C54CA978B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.agenticdt.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AgenticDT.app/AgenticDT";
+			};
+			name = Debug;
+		};
+		4EBD8AABF6938F7128251593 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		5296B610166A8481BF0C18CE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B6MHH2U52U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AgenticDT/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agenticdt.app;
+				PRODUCT_NAME = AgenticDT;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5696040479A76E66311723A3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B6MHH2U52U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AgenticDT/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agenticdt.app;
+				PRODUCT_NAME = AgenticDT;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		92D1170A97B7D3D0BDA13753 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		C6BF1B1DCEE5D0BC2693FA80 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.agenticdt.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AgenticDT.app/AgenticDT";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3DDCCCAA7987DF4D64E1AD62 /* Build configuration list for PBXNativeTarget "AgenticDT" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5296B610166A8481BF0C18CE /* Debug */,
+				5696040479A76E66311723A3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		701F393DDE6A4B71D35B5E44 /* Build configuration list for PBXProject "AgenticDT" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4EBD8AABF6938F7128251593 /* Debug */,
+				92D1170A97B7D3D0BDA13753 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		91DF9CB19EA37A0545E878A1 /* Build configuration list for PBXNativeTarget "AgenticDTTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E5E7AFFB75CF31C54CA978B /* Debug */,
+				C6BF1B1DCEE5D0BC2693FA80 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1B0D06ED5FE7CEDB7E723BE8 /* Project object */;
+}

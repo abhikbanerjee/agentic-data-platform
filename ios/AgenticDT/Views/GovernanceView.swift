@@ -16,35 +16,13 @@ struct GovernanceView: View {
                     )
                     
                     // Stats Cards
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "47",
-                            subtitle: "Active Policies",
-                            color: Color("AccentCyan"),
-                            icon: "lock.shield"
-                        )
-                        CardView(
-                            title: "12",
-                            subtitle: "Data Contracts",
-                            color: Color("AccentCyan"),
-                            icon: "doc.text"
-                        )
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        GovStatCard(value: "47",    label: "Active Policies",  icon: "lock.shield",           color: Color("AccentCyan"))
+                        GovStatCard(value: "12",    label: "Data Contracts",   icon: "doc.text",              color: Color("AccentCyan"))
+                        GovStatCard(value: "8",     label: "Pending Requests", icon: "clock",                 color: Color("AccentCyan"))
+                        GovStatCard(value: "99.1%", label: "Compliance",       icon: "checkmark.circle.fill", color: Color("AccentCyan"))
                     }
-                    
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "8",
-                            subtitle: "Pending Requests",
-                            color: Color("AccentCyan"),
-                            icon: "clock"
-                        )
-                        CardView(
-                            title: "99.1%",
-                            subtitle: "Compliance",
-                            color: Color("AccentCyan"),
-                            icon: "checkmark.circle.fill"
-                        )
-                    }
+                    .padding(.horizontal)
                     
                     // Data Mesh Domains
                     VStack(alignment: .leading, spacing: 12) {
@@ -305,6 +283,33 @@ struct ImmutaPolicyRow: View {
         .padding()
         .background(Color(red: 0.97, green: 0.98, blue: 0.99))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Stat Card
+private struct GovStatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        CardView {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+                    .frame(width: 36, height: 36)
+                    .background(color.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text(value)
+                    .font(.title2).bold()
+                Text(label)
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+        }
     }
 }
 

@@ -16,35 +16,13 @@ struct MLPlatformView: View {
                     )
                     
                     // Stats Cards
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "24",
-                            subtitle: "Models Deployed",
-                            color: Color("AccentCyan"),
-                            icon: "square.and.arrow.up"
-                        )
-                        CardView(
-                            title: "94.2%",
-                            subtitle: "Avg Accuracy",
-                            color: Color("AccentCyan"),
-                            icon: "chart.bar.fill"
-                        )
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        MLStatCard(value: "24",    label: "Models Deployed", icon: "square.and.arrow.up",    color: Color("AccentCyan"))
+                        MLStatCard(value: "94.2%", label: "Avg Accuracy",    icon: "chart.bar.fill",         color: Color("AccentCyan"))
+                        MLStatCard(value: "38ms",  label: "P99 Latency",     icon: "bolt.fill",              color: Color("AccentCyan"))
+                        MLStatCard(value: "2.1B",  label: "Vectors",         icon: "square.stack.3d.up.fill", color: Color("AccentCyan"))
                     }
-                    
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "38ms",
-                            subtitle: "P99 Latency",
-                            color: Color("AccentCyan"),
-                            icon: "bolt.fill"
-                        )
-                        CardView(
-                            title: "2.1B",
-                            subtitle: "Vectors",
-                            color: Color("AccentCyan"),
-                            icon: "square.stack.3d.up.fill"
-                        )
-                    }
+                    .padding(.horizontal)
                     
                     // ML Lifecycle Pipeline
                     VStack(alignment: .leading, spacing: 12) {
@@ -394,6 +372,34 @@ struct VectorDBCard: View {
         .padding()
         .background(Color(red: 0.97, green: 0.98, blue: 0.99))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Stat Card
+
+private struct MLStatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        CardView {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+                    .frame(width: 36, height: 36)
+                    .background(color.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text(value)
+                    .font(.title2).bold()
+                Text(label)
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+        }
     }
 }
 

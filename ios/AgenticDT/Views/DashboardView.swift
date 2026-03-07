@@ -43,16 +43,16 @@ struct DashboardView: View {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             PillarCard(title: "Agentic Publishing", subtitle: "6 sources · 1,842 datasets",
                                        icon: "arrow.up.circle.fill", color: Color("AccentCyan"),
-                                       tab: .publish, selectedTab: $selectedTab)
+                                       tab: .dataFlow, selectedTab: $selectedTab)
                             PillarCard(title: "Self-Healing Pipelines", subtitle: "247 pipelines · 38 agents",
                                        icon: "arrow.triangle.branch", color: .purple,
-                                       tab: .pipelines, selectedTab: $selectedTab)
+                                       tab: .dataFlow, selectedTab: $selectedTab)
                             PillarCard(title: "Semantic Engine", subtitle: "1,842 schemas · 9 entities",
                                        icon: "brain", color: .green,
-                                       tab: .semantic, selectedTab: $selectedTab)
+                                       tab: .intelligence, selectedTab: $selectedTab)
                             PillarCard(title: "Data Quality", subtitle: "94.2% · 4 open issues",
                                        icon: "checkmark.shield.fill", color: .orange,
-                                       tab: .quality, selectedTab: $selectedTab)
+                                       tab: .intelligence, selectedTab: $selectedTab)
                         }
                         .padding(.horizontal)
                     }
@@ -75,7 +75,7 @@ struct DashboardView: View {
                     }
 
                     // AI Agent CTA
-                    Button { selectedTab = .workspace } label: {
+                    Button { selectedTab = .aiOps } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("AI Data Agent")

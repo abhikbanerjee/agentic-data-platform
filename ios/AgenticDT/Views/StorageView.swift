@@ -16,35 +16,13 @@ struct StorageView: View {
                     )
                     
                     // Stats Cards
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "2.8PB",
-                            subtitle: "Total Data",
-                            color: Color("AccentCyan"),
-                            icon: "internaldrive.fill"
-                        )
-                        CardView(
-                            title: "61,600",
-                            subtitle: "Tables",
-                            color: Color("AccentCyan"),
-                            icon: "table"
-                        )
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        StorageStatCard(value: "2.8PB",  label: "Total Data",  icon: "internaldrive.fill",       color: Color("AccentCyan"))
+                        StorageStatCard(value: "61,600", label: "Tables",      icon: "table",                    color: Color("AccentCyan"))
+                        StorageStatCard(value: "12,400", label: "Features",    icon: "square.stack.3d.up.fill",  color: Color("AccentCyan"))
+                        StorageStatCard(value: "< 50ms", label: "Query P99",   icon: "bolt.fill",                color: Color("AccentCyan"))
                     }
-                    
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "12,400",
-                            subtitle: "Features",
-                            color: Color("AccentCyan"),
-                            icon: "square.stack.3d.up.fill"
-                        )
-                        CardView(
-                            title: "< 50ms",
-                            subtitle: "Query P99",
-                            color: Color("AccentCyan"),
-                            icon: "bolt.fill"
-                        )
-                    }
+                    .padding(.horizontal)
                     
                     // Storage Systems
                     VStack(alignment: .leading, spacing: 12) {
@@ -249,6 +227,33 @@ struct StorageSystemCard: View {
         .padding()
         .background(Color(red: 0.97, green: 0.98, blue: 0.99))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Stat Card
+private struct StorageStatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        CardView {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+                    .frame(width: 36, height: 36)
+                    .background(color.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text(value)
+                    .font(.title2).bold()
+                Text(label)
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+        }
     }
 }
 

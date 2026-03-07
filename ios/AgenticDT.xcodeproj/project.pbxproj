@@ -7,17 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		06C678E41A1F1B081135AC10 /* GovernanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E76D27F76FDDD06BC214F05 /* GovernanceView.swift */; };
+		0D34EDA833F2AF18EE9B59BD /* MLPlatformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9C784FCD9D5307FC84C49C4 /* MLPlatformView.swift */; };
 		3E8A7BC63BABE32B659BAF48 /* SemanticEngineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B4C126DD72F7185D93A944 /* SemanticEngineView.swift */; };
 		3EE52B4ECAD472A9F84432B0 /* PipelinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533E257B83B8C5BF0D7F8298 /* PipelinesView.swift */; };
 		4035A1C798358F41CA760814 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07553BC3C0BED1C7CDE2066E /* ContentView.swift */; };
 		4D3C0C132A91B866798827E0 /* PublishingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F233143D52A3DEF8E0B03678 /* PublishingView.swift */; };
 		50CF8D90483FBFEE08817556 /* DataQualityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2477B65B368C96D120770216 /* DataQualityView.swift */; };
+		5A9627E6E422B8B18D8C2F27 /* IngestionHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60B8BFF503249C272C4B5D17 /* IngestionHubView.swift */; };
 		66D879AF8FB529EABEE84025 /* AgenticDTApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAEDEFC1A057F01116E2E8C /* AgenticDTApp.swift */; };
 		7DC40B694FFF6A625B036CB6 /* AnalystWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BEE5B5E1C49C7958CE46953 /* AnalystWorkspaceView.swift */; };
 		94A3C91EDAA1C0BECCD740A9 /* AgenticDTTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87DE91C71F5E54FB11B4F44B /* AgenticDTTests.swift */; };
 		9ACE7B0694E7476FCDB0FF85 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B11C51A1DE8C86A0CFE19EE5 /* Assets.xcassets */; };
+		AA7A4055735D859DC262052F /* OperationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1333232679875F80BA2323C9 /* OperationsView.swift */; };
 		BE04547861DF382CDF0D4156 /* DataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A5D6D07DD8C3D31798D0466 /* DataModels.swift */; };
 		C3B0448D6DD81F42900D7082 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC12E6857F5EA3E8637F6D /* DashboardView.swift */; };
+		CAABEC4FCE2E5C76C1D98995 /* StorageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3E47A80A7EB624132EECAA /* StorageView.swift */; };
 		F12E0CF82104B1D5775EA719 /* PlatformViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72569500193D4A05E483E42F /* PlatformViewModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,16 +39,22 @@
 /* Begin PBXFileReference section */
 		00A9C47B43F36C4185674104 /* AgenticDT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgenticDT.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		07553BC3C0BED1C7CDE2066E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1333232679875F80BA2323C9 /* OperationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationsView.swift; sourceTree = "<group>"; };
 		1EDC12E6857F5EA3E8637F6D /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		2477B65B368C96D120770216 /* DataQualityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataQualityView.swift; sourceTree = "<group>"; };
 		2482CF141ED2B3A767698321 /* AgenticDTTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AgenticDTTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2BEE5B5E1C49C7958CE46953 /* AnalystWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalystWorkspaceView.swift; sourceTree = "<group>"; };
 		2FAEDEFC1A057F01116E2E8C /* AgenticDTApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgenticDTApp.swift; sourceTree = "<group>"; };
 		533E257B83B8C5BF0D7F8298 /* PipelinesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelinesView.swift; sourceTree = "<group>"; };
+		60B8BFF503249C272C4B5D17 /* IngestionHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestionHubView.swift; sourceTree = "<group>"; };
 		72569500193D4A05E483E42F /* PlatformViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformViewModel.swift; sourceTree = "<group>"; };
 		87DE91C71F5E54FB11B4F44B /* AgenticDTTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgenticDTTests.swift; sourceTree = "<group>"; };
 		8A5D6D07DD8C3D31798D0466 /* DataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataModels.swift; sourceTree = "<group>"; };
+		8E76D27F76FDDD06BC214F05 /* GovernanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GovernanceView.swift; sourceTree = "<group>"; };
+		A9C784FCD9D5307FC84C49C4 /* MLPlatformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLPlatformView.swift; sourceTree = "<group>"; };
 		B11C51A1DE8C86A0CFE19EE5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C354019D5AE92261ED99EEF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DA3E47A80A7EB624132EECAA /* StorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageView.swift; sourceTree = "<group>"; };
 		F233143D52A3DEF8E0B03678 /* PublishingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishingView.swift; sourceTree = "<group>"; };
 		F2B4C126DD72F7185D93A944 /* SemanticEngineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticEngineView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -79,9 +90,14 @@
 				2BEE5B5E1C49C7958CE46953 /* AnalystWorkspaceView.swift */,
 				1EDC12E6857F5EA3E8637F6D /* DashboardView.swift */,
 				2477B65B368C96D120770216 /* DataQualityView.swift */,
+				8E76D27F76FDDD06BC214F05 /* GovernanceView.swift */,
+				60B8BFF503249C272C4B5D17 /* IngestionHubView.swift */,
+				A9C784FCD9D5307FC84C49C4 /* MLPlatformView.swift */,
+				1333232679875F80BA2323C9 /* OperationsView.swift */,
 				533E257B83B8C5BF0D7F8298 /* PipelinesView.swift */,
 				F233143D52A3DEF8E0B03678 /* PublishingView.swift */,
 				F2B4C126DD72F7185D93A944 /* SemanticEngineView.swift */,
+				DA3E47A80A7EB624132EECAA /* StorageView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -101,6 +117,7 @@
 				2FAEDEFC1A057F01116E2E8C /* AgenticDTApp.swift */,
 				B11C51A1DE8C86A0CFE19EE5 /* Assets.xcassets */,
 				07553BC3C0BED1C7CDE2066E /* ContentView.swift */,
+				C354019D5AE92261ED99EEF8 /* Info.plist */,
 				0BA262950461B5D7F382B29A /* Models */,
 				890AEE85061D58E109EAE0B0 /* ViewModels */,
 				93CA6C760FF0B67897C62CE8 /* Views */,
@@ -214,10 +231,15 @@
 				C3B0448D6DD81F42900D7082 /* DashboardView.swift in Sources */,
 				BE04547861DF382CDF0D4156 /* DataModels.swift in Sources */,
 				50CF8D90483FBFEE08817556 /* DataQualityView.swift in Sources */,
+				06C678E41A1F1B081135AC10 /* GovernanceView.swift in Sources */,
+				5A9627E6E422B8B18D8C2F27 /* IngestionHubView.swift in Sources */,
+				0D34EDA833F2AF18EE9B59BD /* MLPlatformView.swift in Sources */,
+				AA7A4055735D859DC262052F /* OperationsView.swift in Sources */,
 				3EE52B4ECAD472A9F84432B0 /* PipelinesView.swift in Sources */,
 				F12E0CF82104B1D5775EA719 /* PlatformViewModel.swift in Sources */,
 				4D3C0C132A91B866798827E0 /* PublishingView.swift in Sources */,
 				3E8A7BC63BABE32B659BAF48 /* SemanticEngineView.swift in Sources */,
+				CAABEC4FCE2E5C76C1D98995 /* StorageView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -320,7 +342,6 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = B6MHH2U52U;
-				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AgenticDT/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -343,7 +364,6 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = B6MHH2U52U;
-				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AgenticDT/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

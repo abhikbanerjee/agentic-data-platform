@@ -18,35 +18,13 @@ struct IngestionHubView: View {
                     )
                     
                     // Stats Cards
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "284",
-                            subtitle: "Active Streams",
-                            color: Color("AccentCyan"),
-                            icon: "arrow.triangle.2.circlepath"
-                        )
-                        CardView(
-                            title: "3.2M",
-                            subtitle: "msg/sec",
-                            color: Color("AccentCyan"),
-                            icon: "bolt.fill"
-                        )
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        IngestionStatCard(value: "284",   label: "Active Streams",  icon: "arrow.triangle.2.circlepath", color: Color("AccentCyan"))
+                        IngestionStatCard(value: "3.2M",  label: "msg/sec",         icon: "bolt.fill",                   color: Color("AccentCyan"))
+                        IngestionStatCard(value: "198ms", label: "Avg Lag",         icon: "timer",                       color: Color("AccentCyan"))
+                        IngestionStatCard(value: "97.2%", label: "Schema Health",   icon: "checkmark.circle.fill",       color: Color("AccentCyan"))
                     }
-                    
-                    HStack(spacing: 12) {
-                        CardView(
-                            title: "198ms",
-                            subtitle: "Avg Lag",
-                            color: Color("AccentCyan"),
-                            icon: "timer"
-                        )
-                        CardView(
-                            title: "97.2%",
-                            subtitle: "Schema Health",
-                            color: Color("AccentCyan"),
-                            icon: "checkmark.circle.fill"
-                        )
-                    }
+                    .padding(.horizontal)
                     
                     // Streaming Topology
                     VStack(alignment: .leading, spacing: 12) {
@@ -334,6 +312,33 @@ struct TopologyBox: View {
         .frame(minWidth: 60)
         .background(color)
         .cornerRadius(6)
+    }
+}
+
+// MARK: - Stat Card
+private struct IngestionStatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        CardView {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(color)
+                    .frame(width: 36, height: 36)
+                    .background(color.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text(value)
+                    .font(.title2).bold()
+                Text(label)
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+        }
     }
 }
 

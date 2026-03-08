@@ -1,18 +1,18 @@
 import SwiftUI
 
 // MARK: - Local message model
+// Note: MessageRole is defined globally in DataModels.swift — no redeclaration needed.
 
 private struct LocalMessage: Identifiable {
     let id = UUID()
-    let role: MessageRole
+    let role: MessageRole          // uses DataModels.MessageRole
     var content: String
     let timestamp: Date
     var pendingAction: AIAction? = nil
-    var actionStatus: ActionStatus = .none
+    var actionStatus: ApprovalStatus = .none
 }
 
-private enum MessageRole { case user, assistant }
-private enum ActionStatus { case none, approved, rejected }
+private enum ApprovalStatus { case none, approved, rejected }
 
 // MARK: - Action model (human-in-the-loop)
 
@@ -373,7 +373,7 @@ private struct AssistantBubble: View {
     let text: String
     let time: Date
     let action: AIAction?
-    let actionStatus: ActionStatus
+    let actionStatus: ApprovalStatus
     let onApprove: () -> Void
     let onReject: () -> Void
 

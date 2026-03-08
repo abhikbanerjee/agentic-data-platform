@@ -597,6 +597,7 @@ private struct InputBar: View {
     let isBusy: Bool
     let quickPrompts: [String]
     let onSend: () -> Void
+    @State private var micOpacity: Double = 1.0
     let onMic:  () -> Void
 
     var body: some View {
@@ -626,7 +627,18 @@ private struct InputBar: View {
                     Image(systemName: isListening ? "stop.circle.fill" : "mic.fill")
                         .font(.title2)
                         .foregroundColor(isListening ? .red : Color(.systemGray3))
-                        .symbolEffect(.pulse, isActive: isListening)
+                        .opacity(micOpacity)
+                }
+                .onChange(of: isListening) { listening in
+                    if listening {
+                        withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+                            micOpacity = 0.3
+                        }
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            micOpacity = 1.0
+                        }
+                    }
                 }
 
                 TextField("Ask anything or speak…", text: $text, axis: .vertical)

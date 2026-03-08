@@ -8,7 +8,7 @@ import {
   Brain, Users, Settings, ChevronRight, Play, Pause, RotateCw,
   CheckCircle, Clock, AlertTriangle, Home, Layers, Lock, GitBranch,
   BarChart3, Workflow, Filter, Search, RefreshCw, Download, Plus,
-  Gauge, Eye, Cloud, MapPin, Copy, Menu, X
+  Gauge, Eye, Cloud, MapPin, Copy, Menu, X, MessageSquare
 } from 'lucide-react';
 
 export default function AgenticDataPlatform() {
@@ -1652,7 +1652,7 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
       title: 'AI & Analytics',
       items: [
         { id: 'ml', label: 'ML Platform', icon: Brain },
-        { id: 'analyst', label: 'Analyst Workspace', icon: Users }
+        { id: 'analyst', label: 'AI Assistant', icon: MessageSquare }
       ]
     },
     {

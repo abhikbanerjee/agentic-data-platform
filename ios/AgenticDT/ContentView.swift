@@ -113,10 +113,10 @@ struct ContentView: View {
                                        title: "ML Platform",
                                        subtitle: "Infinite AI · Model lifecycle · Vector DB")
                         }
-                        NavigationLink { AnalystWorkspaceView() } label: {
-                            SectionRow(icon: "bubble.left.and.bubble.right.fill", color: Color("AccentCyan"),
-                                       title: "Analyst Workspace",
-                                       subtitle: "NL→SQL · Athena · Starburst · Deploy to prod")
+                        NavigationLink { AIAssistantView() } label: {
+                            SectionRow(icon: "brain.head.profile", color: Color("AccentCyan"),
+                                       title: "AI Assistant",
+                                       subtitle: "GPT-4o chat · Voice · Human-in-the-loop actions")
                         }
                     }
                     Section("Operations") {

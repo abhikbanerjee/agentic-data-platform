@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -1098,124 +1098,362 @@ export default function AgenticDataPlatform() {
   );
 
   // Analyst Workspace View
-  const AnalystWorkspaceView = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Analyst Workspace</h2>
-        <p className="text-gray-600 mb-6">Natural Language → SQL with AI Chat & Production Deployment</p>
-      </div>
+  const AIAssistantView = () => {
+    const PLATFORM_SYSTEM_PROMPT = `You are AgenticDT Assistant, the AI interface for the AgenticDT Agentic Driven Data Platform. You help data engineers, platform teams, and analysts automate data operations.
 
-      {/* Analytics Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={Users}
-          label="Active Analysts"
-          value="34"
-          change="+5"
-          color="teal"
-        />
-        <StatCard
-          icon={Zap}
-          label="Queries Today"
-          value="1,245"
-          change="+340"
-          color="teal"
-        />
-        <StatCard
-          icon={Clock}
-          label="Avg Query Time"
-          value="3.2s"
-          change="-0.8s"
-          color="teal"
-        />
-        <StatCard
-          icon={CheckCircle}
-          label="Deployed Reports"
-          value="89"
-          change="+12"
-          color="teal"
-        />
-      </div>
+Platform context:
+- 247 active pipelines (221 healthy, 19 warning, 7 failed)
+- 284 connected data sources (Snowflake, S3, Kafka/MSK, PostgreSQL, BigQuery, REST APIs)
+- Overall data quality score: 94.2%
+- 1,842 schemas registered in the semantic catalog
+- 38 AI agents currently active
+- 2.8 PB total data under management
 
-      {/* Query Interface */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-4">Query Engine (Athena / Starburst / Snowflake SQL)</h3>
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Ask in natural language or write SQL..."
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-            />
-            <button className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium flex items-center gap-2">
-              <Play className="w-4 h-4" />
-              Execute
+You can help with:
+1. Creating automated data ingestion pipelines
+2. Registering dataset metadata in the semantic catalog
+3. Triggering self-healing on failed pipelines
+4. Data quality checks and remediation
+5. ML model deployment and monitoring
+6. Analytics queries and dashboard creation
+
+IMPORTANT: When a user requests an action that requires system changes (create pipeline, register metadata, trigger healing, deploy model, fix quality), respond helpfully explaining what you will do, then end your message with an action block in this exact format on its own line:
+[ACTION:{"type":"CREATE_PIPELINE","title":"Short title","description":"What will happen","details":{"source":"value","target":"value","schedule":"value"}}]
+
+Valid types: CREATE_PIPELINE, REGISTER_METADATA, TRIGGER_HEALING, QUALITY_FIX, DEPLOY_MODEL
+
+Be concise and professional. Use specific technology names: Confluent/MSK, Flink, Spark, Airflow, Control-M, Snowflake, S3, Immuta, Arthur.ai, Infinite AI.`;
+
+    const QUICK_PROMPTS = [
+      "Create an automated pipeline ingesting from S3 to Snowflake",
+      "Register metadata for a new customer analytics dataset",
+      "Kick off self-healing on the 7 failed pipelines",
+      "Show me current data quality issues and fix them",
+      "Deploy the revenue forecasting ML model to production",
+      "What's the status of all active pipelines?",
+    ];
+
+    const ACTION_ICONS = { CREATE_PIPELINE: GitBranch, REGISTER_METADATA: Database, TRIGGER_HEALING: RotateCw, QUALITY_FIX: CheckCircle, DEPLOY_MODEL: Zap };
+
+    const ACTION_RESULTS = {
+      CREATE_PIPELINE: (a) => `✅ Pipeline created and active!\n\n**${a.title}**\nStatus: Running · First execution in 5 min\nSchema Agent is scanning the source now and auto-registering metadata.`,
+      REGISTER_METADATA: (a) => `✅ Metadata registered in semantic catalog!\n\n**${a.title}**\nDataset catalogued · Lineage graph updated · 4 tags auto-applied · Quality baseline set.`,
+      TRIGGER_HEALING: (a) => `✅ Self-healing initiated on 7 failed pipelines!\n\n**${a.title}**\nHeal Agent analysed root causes · 5/7 patches applied · ETA full recovery: ~3 min.`,
+      QUALITY_FIX: (a) => `✅ Data quality remediation complete!\n\n**${a.title}**\n3,240 records fixed · Quality score: 94.2% → 97.1% · Issue queue cleared.`,
+      DEPLOY_MODEL: (a) => `✅ Model deployed to production!\n\n**${a.title}**\nEndpoint live · P99 latency: 38ms · Arthur.ai monitoring active · Auto-rollback enabled.`,
+    };
+
+    const [messages, setMessages] = useState([{
+      id: 1, role: 'assistant', timestamp: new Date(),
+      content: "👋 Hello! I'm the **AgenticDT AI Assistant**.\n\nI can help you:\n• **Create** automated ingestion pipelines\n• **Register** dataset metadata in the catalog\n• **Trigger** self-healing on failed pipelines\n• **Deploy** ML models to production\n• **Fix** data quality issues\n\nType a question below or use the 🎙️ microphone — I'll guide you through any action with human-in-the-loop approval before anything executes.",
+    }]);
+    const [inputText, setInputText]           = useState('');
+    const [isLoading, setIsLoading]           = useState(false);
+    const [isListening, setIsListening]       = useState(false);
+    const [interimText, setInterimText]       = useState('');
+    const [apiKey, setApiKey]                 = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
+    const [showSettings, setShowSettings]     = useState(false);
+    const [pendingAction, setPendingAction]   = useState(null);
+    const [executingAction, setExecutingAction] = useState(false);
+    const [doneCount, setDoneCount]           = useState(0);
+    const [voiceOk]                           = useState(() => !!(window.SpeechRecognition || window.webkitSpeechRecognition));
+    const bottomRef   = useRef(null);
+    const recogRef    = useRef(null);
+    const textareaRef = useRef(null);
+
+    useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pendingAction, executingAction]);
+
+    const callOpenAI = async (history) => {
+      const key = apiKey.trim();
+      if (!key) return "⚠️ No API key set. Click ⚙️ Settings above and paste your OpenAI key to get started.";
+      try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{ role: 'system', content: PLATFORM_SYSTEM_PROMPT }, ...history.map(m => ({ role: m.role, content: m.content }))],
+            temperature: 0.7, max_tokens: 900,
+          }),
+        });
+        if (!res.ok) { const e = await res.json(); return `❌ OpenAI error: ${e.error?.message || res.statusText}`; }
+        const d = await res.json();
+        return d.choices[0].message.content;
+      } catch (e) { return `❌ Network error: ${e.message}`; }
+    };
+
+    const parseAction = (text) => {
+      const m = text.match(/\[ACTION:(\{[\s\S]*?\})\]/);
+      if (!m) return null;
+      try { return JSON.parse(m[1]); } catch { return null; }
+    };
+    const stripAction = (text) => text.replace(/\[ACTION:[\s\S]*?\]/, '').trim();
+
+    const sendMessage = async (text = inputText) => {
+      const t = text.trim();
+      if (!t || isLoading) return;
+      const userMsg = { id: Date.now(), role: 'user', content: t, timestamp: new Date() };
+      const next = [...messages, userMsg];
+      setMessages(next);
+      setInputText('');
+      if (textareaRef.current) { textareaRef.current.style.height = '46px'; }
+      setIsLoading(true);
+      const raw = await callOpenAI(next);
+      const action = parseAction(raw);
+      const clean  = stripAction(raw);
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', content: clean, timestamp: new Date() }]);
+      if (action) setPendingAction(action);
+      setIsLoading(false);
+    };
+
+    const approveAction = async () => {
+      const saved = pendingAction;
+      setPendingAction(null);
+      setExecutingAction(true);
+      await new Promise(r => setTimeout(r, 2400));
+      const resultFn = ACTION_RESULTS[saved.type] || (() => `✅ Action completed successfully!\n\n**${saved.title}**`);
+      setMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content: resultFn(saved), timestamp: new Date(), isSuccess: true }]);
+      setDoneCount(c => c + 1);
+      setExecutingAction(false);
+    };
+
+    const rejectAction = () => {
+      setPendingAction(null);
+      setMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content: "Understood — action cancelled. Let me know if you'd like to adjust the parameters or try something else.", timestamp: new Date() }]);
+    };
+
+    const startVoice = () => {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return;
+      const r = new SR();
+      recogRef.current = r;
+      r.continuous = false; r.interimResults = true; r.lang = 'en-US';
+      r.onstart  = () => setIsListening(true);
+      r.onresult = (e) => {
+        const t = Array.from(e.results).map(x => x[0].transcript).join('');
+        setInterimText(t);
+        if (e.results[e.results.length - 1].isFinal) { setInputText(t); setInterimText(''); }
+      };
+      r.onend    = () => { setIsListening(false); setInterimText(''); };
+      r.onerror  = () => { setIsListening(false); setInterimText(''); };
+      r.start();
+    };
+    const stopVoice = () => { recogRef.current?.stop(); setIsListening(false); };
+
+    return (
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+
+        {/* ── Header ── */}
+        <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Brain className="w-5 h-5 text-teal-600" />
+              AI Data Assistant
+              <span className="text-xs font-normal bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full border border-teal-200 ml-1">GPT-4o</span>
+            </h2>
+            <p className="text-xs text-gray-500">Chat · Voice · Human-in-the-Loop approvals for every platform action</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {doneCount > 0 && (
+              <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-medium border border-green-200">
+                ✓ {doneCount} action{doneCount > 1 ? 's' : ''} executed
+              </span>
+            )}
+            <button onClick={() => setShowSettings(s => !s)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${showSettings ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'text-gray-600 hover:bg-gray-100'}`}>
+              <Settings className="w-4 h-4" /> Settings
             </button>
           </div>
-          <div className="text-xs text-gray-600">
-            Tip: Ask "Show revenue by product category" and AI will translate to SQL
-          </div>
         </div>
-      </div>
 
-      {/* Recent Queries */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Recent Queries</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">User</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Query</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Execution</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Rows</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {queries.map((query) => (
-                <tr key={query.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{query.user}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 font-mono text-xs">{query.sql}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{query.execution}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{query.rows}</td>
-                  <td className="px-6 py-4 text-sm text-teal-600 font-medium">{query.source}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* AI Chat Assistant */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Brain className="w-5 h-5 text-teal-600" />
-          AI Assistant Chat
-        </h3>
-        <div className="bg-gray-50 rounded-lg p-4 mb-4 h-40 overflow-y-auto border border-gray-200">
-          <div className="space-y-3 text-sm">
-            <div className="text-gray-600">
-              <span className="font-medium text-gray-900">You:</span> What is our top product by revenue?
-            </div>
-            <div className="bg-white p-2 rounded border border-teal-200 text-gray-900">
-              <span className="font-medium text-teal-700">Assistant:</span> Based on product_sales data, Product-X had $2.3M revenue last quarter, a 15% increase YoY. Would you like me to generate a SQL query for monthly trends?
+        {/* ── Settings panel ── */}
+        {showSettings && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex-shrink-0">
+            <div className="flex items-end gap-4 flex-wrap">
+              <div className="flex-1 min-w-72">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">OpenAI API Key</label>
+                <div className="flex gap-2">
+                  <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
+                    placeholder="sk-proj-… paste your OpenAI key here"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                  <button onClick={() => setShowSettings(false)}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition">Save</button>
+                </div>
+                <p className="text-xs text-amber-700 mt-1">
+                  🔒 Stored in memory only — never committed to code. For Vercel, set <code className="font-mono bg-amber-100 px-1 rounded">VITE_OPENAI_API_KEY</code> as an environment variable.
+                </p>
+              </div>
+              <div className="text-xs">
+                <span className={`px-2 py-1 rounded-full font-semibold ${apiKey ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {apiKey ? '✓ Key ready' : '✗ No key set'}
+                </span>
+              </div>
             </div>
           </div>
+        )}
+
+        {/* ── Quick prompts ── */}
+        <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 flex gap-2 overflow-x-auto flex-shrink-0 items-center">
+          <span className="text-xs text-gray-400 font-medium whitespace-nowrap">Try:</span>
+          {QUICK_PROMPTS.map((p, i) => (
+            <button key={i} onClick={() => sendMessage(p)} disabled={isLoading}
+              className="whitespace-nowrap text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-700 hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50 transition disabled:opacity-50 flex-shrink-0">
+              {p}
+            </button>
+          ))}
         </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Ask a question..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 text-sm"
-          />
-          <button className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium">Send</button>
+
+        {/* ── Messages ── */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {messages.map(msg => (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-2xl w-full ${msg.role === 'user' ? 'flex flex-col items-end' : ''}`}>
+                {msg.role === 'assistant' && (
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
+                      <Brain className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-600">AgenticDT Assistant</span>
+                    <span className="text-xs text-gray-400">{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                )}
+                <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                  msg.role === 'user'
+                    ? 'bg-teal-600 text-white rounded-tr-sm max-w-lg'
+                    : msg.isSuccess
+                      ? 'bg-green-50 border border-green-200 text-gray-900 rounded-tl-sm'
+                      : 'bg-white border border-gray-200 text-gray-900 rounded-tl-sm shadow-sm'
+                }`}>
+                  {msg.content}
+                </div>
+                {msg.role === 'user' && (
+                  <span className="text-xs text-gray-400 mt-1">{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Typing indicator */}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
+                    <Brain className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-600">AgenticDT Assistant</span>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Human-in-the-Loop approval card ── */}
+          {pendingAction && !executingAction && (
+            <div className="flex justify-start">
+              <div className="max-w-2xl w-full">
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl rounded-tl-sm p-4 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      {React.createElement(ACTION_ICONS[pendingAction.type] || Zap, { className: 'w-4 h-4 text-amber-600' })}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">⚡ Human Approval Required</span>
+                      <p className="font-semibold text-gray-900 text-sm mt-0.5">{pendingAction.title}</p>
+                      <p className="text-sm text-gray-600 mt-1">{pendingAction.description}</p>
+                      {pendingAction.details && Object.keys(pendingAction.details).length > 0 && (
+                        <div className="mt-2 bg-white rounded-lg p-2.5 border border-amber-200 space-y-1">
+                          {Object.entries(pendingAction.details).map(([k, v]) => (
+                            <div key={k} className="text-xs font-mono">
+                              <span className="text-amber-600 font-semibold">{k}:</span>{' '}
+                              <span className="text-gray-700">{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button onClick={approveAction}
+                      className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition flex items-center justify-center gap-2">
+                      <CheckCircle className="w-4 h-4" /> Approve & Execute
+                    </button>
+                    <button onClick={rejectAction}
+                      className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-2">
+                      <X className="w-4 h-4" /> Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Executing spinner */}
+          {executingAction && (
+            <div className="flex justify-start">
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-3">
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-blue-700 font-medium">Executing — AI agents are working…</span>
+              </div>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* ── Input area ── */}
+        <div className="bg-white border-t border-gray-200 px-6 py-4 flex-shrink-0">
+          {interimText && (
+            <div className="mb-2 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-lg text-sm text-teal-700 italic flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              {interimText}…
+            </div>
+          )}
+          {isListening && !interimText && (
+            <div className="mb-2 flex items-center gap-2 text-xs text-red-600 font-medium">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /> Listening… speak now
+            </div>
+          )}
+          <div className="flex gap-2 items-end">
+            <textarea ref={textareaRef} value={inputText} onChange={e => setInputText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
+              placeholder="Ask anything — create a pipeline, register metadata, trigger self-healing, deploy a model…"
+              rows={1}
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm resize-none"
+              style={{ minHeight: '46px', maxHeight: '120px' }} />
+            {voiceOk && (
+              <button onClick={isListening ? stopVoice : startVoice} disabled={isLoading}
+                className={`p-3 rounded-xl transition flex-shrink-0 ${isListening ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                title={isListening ? 'Stop recording' : 'Start voice input'}>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  {isListening
+                    ? <path d="M6 6h12v12H6z" />
+                    : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V22H9v2h6v-2h-2v-1.06A9 9 0 0 0 21 12v-2z"/></>}
+                </svg>
+              </button>
+            )}
+            <button onClick={() => sendMessage()} disabled={isLoading || !inputText.trim()}
+              className="p-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+              title="Send (Enter)">
+              <svg className="w-5 h-5 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2 text-center">
+            Press <kbd className="px-1 py-0.5 bg-gray-100 rounded font-mono text-xs">Enter</kbd> to send ·{' '}
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded font-mono text-xs">Shift+Enter</kbd> for new line ·{' '}
+            {voiceOk ? '🎙️ mic button for voice input' : ''}
+          </p>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Operations View
   const OperationsView = () => (
@@ -1373,7 +1611,7 @@ export default function AgenticDataPlatform() {
       case 'ml':
         return <MLPlatformView />;
       case 'analyst':
-        return <AnalystWorkspaceView />;
+        return <AIAssistantView />;
       case 'operations':
         return <OperationsView />;
       default:

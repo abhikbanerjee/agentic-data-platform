@@ -1,7 +1,7 @@
 {
   "name": "agenticdt-backend",
   "version": "1.0.0",
-  "description": "AgenticDT OpenAI backend proxy with Firebase auth",
+  "description": "AgenticDT backend — AWS pipeline orchestration + OpenAI chat",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -10,7 +10,6 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "firebase-admin": "^12.0.0",
     "openai": "^4.28.0",
     "dotenv": "^16.4.1",
     "helmet": "^7.1.0",

@@ -26,29 +26,6 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 const { getMetadata, enrichWithAI, registerMetadata, getCatalogIndex } = require('./src/metadataAgent');
 
-// ── Firebase Admin (optional — only if credentials are present) ───────────────
-let admin = null;
-if (
-  process.env.FIREBASE_PROJECT_ID &&
-  process.env.FIREBASE_CLIENT_EMAIL &&
-  process.env.FIREBASE_PRIVATE_KEY
-) {
-  try {
-    admin = require('firebase-admin');
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      }),
-    });
-    console.log(`Firebase Admin initialised — project: ${process.env.FIREBASE_PROJECT_ID}`);
-  } catch (e) {
-    console.warn('Firebase Admin init skipped:', e.message);
-    admin = null;
-  }
-}
-
 // ── OpenAI (optional) ─────────────────────────────────────────────────────────
 let openai = null;
 if (process.env.OPENAI_API_KEY) {
@@ -99,26 +76,10 @@ function requirePasscode(req, res, next) {
   next();
 }
 
-// ── Middleware: optional Firebase auth ────────────────────────────────────────
-async function requireAuth(req, res, next) {
-  if (!admin) return next(); // auth disabled — pass through
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing Authorization header' });
-  }
-  try {
-    req.user = await admin.auth().verifyIdToken(authHeader.split('Bearer ')[1]);
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-}
-
 // ── GET /health ───────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({
   status: 'ok',
   timestamp: new Date().toISOString(),
-  firebase: !!admin,
   openai: !!openai,
   aws: isAwsConfigured(),
   awsRegion: process.env.AWS_REGION || 'us-east-1',
@@ -473,7 +434,6 @@ app.get('/api/catalog', async (req, res) => {
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\nAgenticDT backend running on port ${PORT}`);
-  console.log(`  Firebase  : ${admin ? '✅ enabled' : '⚠️  disabled (set FIREBASE_* vars to enable)'}`);
   console.log(`  OpenAI    : ${openai ? '✅ enabled' : '⚠️  disabled (set OPENAI_API_KEY to enable)'}`);
   console.log(`  AWS       : ${isAwsConfigured() ? `✅ configured (region: ${process.env.AWS_REGION || 'us-east-1'})` : '⚠️  not configured (set AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)'}`);
   console.log('');

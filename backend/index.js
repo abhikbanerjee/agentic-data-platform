@@ -3,6 +3,14 @@ const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
 
+// ── Prevent unhandled rejections / exceptions from crashing the process ───────
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+
 const { isAwsConfigured } = require('./src/awsClient');
 const {
   runHealingCycle,
@@ -429,6 +437,12 @@ app.get('/api/catalog', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Global error handler (catches any unhandled throws in route handlers) ─────
+app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  console.error('[Express error]', err);
+  res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

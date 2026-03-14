@@ -29,6 +29,7 @@ Package.resolved
 # Node / React
 node_modules/
 dist/
+.gitignore
 .env
 .env.local
 .env.swp

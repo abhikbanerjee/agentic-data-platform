@@ -1,4 +1,72 @@
-# Xcode
+# ─── Secrets & credentials (NEVER commit these) ──────────────────────────────
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+*.credentials
+*.pem
+*.p12
+*.pfx
+*.key
+secrets/
+credentials/
+
+# ─── Vim / editor swap files ─────────────────────────────────────────────────
+*.swp
+*.swo
+*.swn
+*~
+.#*
+
+# ─── OS noise ────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Node / React / Vite ─────────────────────────────────────────────────────
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.eslintcache
+.vite/
+
+# ─── IDE / editor ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+
+# ─── Python (Lambda packaging) ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.Python
+
+# ─── AWS / Terraform ─────────────────────────────────────────────────────────
+.aws/
+terraform.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# ─── Zip / compiled Lambda packages ─────────────────────────────────────────
+*.zip
+lambda_package/
+lambda_layer/
+
+# ─── Xcode / iOS ─────────────────────────────────────────────────────────────
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcworkspace/xcshareddata/
@@ -20,25 +88,12 @@ DerivedData/
 *.dSYM
 build/
 
-# SPM
+# ─── Swift Package Manager ───────────────────────────────────────────────────
 .build/
 .swiftpm/
 Packages/
 Package.resolved
 
-# Node / React
-node_modules/
-dist/
-.gitignore
-.env
-.env.*
-*.swp
-.env.local
-.env.swp
-.DS_Store
-.vscode/
-*.log
-
-# CocoaPods (if ever used)
+# ─── CocoaPods ───────────────────────────────────────────────────────────────
 Pods/
 Podfile.lock

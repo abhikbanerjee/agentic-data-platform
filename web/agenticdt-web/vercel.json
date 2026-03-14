@@ -1,6 +1,17 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "https://agentic-data-platform-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://agentic-data-platform-production.up.railway.app/health"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {

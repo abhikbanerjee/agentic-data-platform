@@ -1168,7 +1168,10 @@ function AgenticDataPlatform() {
   );
 
   // ── Pipeline helpers ─────────────────────────────────────────────────────────
-  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+  // In production (Vercel) VITE_BACKEND_URL is intentionally empty — all /api/*
+  // calls are proxied by vercel.json rewrites so there is no cross-origin request.
+  // In local dev the Vite dev-server proxy (vite.config.js) forwards /api → :3001.
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
 
   const fetchPipelines = async () => {
     setPipelinesLoading(true);
@@ -2390,7 +2393,7 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
 
     const callOpenAI = async (history) => {
       try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
         const res = await fetch(`${backendUrl}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2506,8 +2509,8 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
             <div className="flex items-start gap-6 flex-wrap text-xs text-gray-600">
               <div>
                 <p className="font-semibold text-gray-700 mb-1">🔗 Backend</p>
-                <code className="bg-white border border-gray-200 px-2 py-1 rounded text-gray-800">{import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}</code>
-                <p className="text-gray-400 mt-1">Set <code className="bg-gray-100 px-1 rounded">VITE_BACKEND_URL</code> in your .env to change</p>
+                <code className="bg-white border border-gray-200 px-2 py-1 rounded text-gray-800">{import.meta.env.VITE_BACKEND_URL || '(proxied via Vercel)'}</code>
+                <p className="text-gray-400 mt-1">In production, API calls are proxied by Vercel — no CORS needed</p>
               </div>
               <div>
                 <p className="font-semibold text-gray-700 mb-1">🤖 AI Model</p>

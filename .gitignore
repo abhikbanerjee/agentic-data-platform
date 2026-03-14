@@ -31,6 +31,8 @@ node_modules/
 dist/
 .gitignore
 .env
+.env.*
+*.swp
 .env.local
 .env.swp
 .DS_Store

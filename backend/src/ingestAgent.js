@@ -128,6 +128,7 @@ async function startIngestionPipeline({ runId, inputS3Path, transformColumn, new
 
   const executionInput = {
     run_id:           runId,
+    skip_etl:         false,              // ← required by CheckMode Choice state
     input_s3_path:    inputS3Path,
     parsed_s3_path:   `s3://${bucket}/parsed/${runId}/`,
     output_s3_path:   `s3://${bucket}/transformed/${runId}/`,

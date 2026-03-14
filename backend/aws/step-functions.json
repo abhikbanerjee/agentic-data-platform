@@ -8,8 +8,10 @@
       "Comment": "Route to quality-only profiler when skip_etl=true (re-uses last ETL output), otherwise run full pipeline",
       "Choices": [
         {
-          "Variable": "$.skip_etl",
-          "BooleanEquals": true,
+          "And": [
+            { "Variable": "$.skip_etl", "IsPresent": true },
+            { "Variable": "$.skip_etl", "BooleanEquals": true }
+          ],
           "Next": "RunQualityProfiler"
         }
       ],

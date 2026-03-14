@@ -447,7 +447,7 @@ app.get('/api/catalog', async (req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\nAgenticDT backend running on port ${PORT}`);
   console.log(`  Firebase  : ${admin ? '✅ enabled' : '⚠️  disabled (set FIREBASE_* vars to enable)'}`);
   console.log(`  OpenAI    : ${openai ? '✅ enabled' : '⚠️  disabled (set OPENAI_API_KEY to enable)'}`);

@@ -60,13 +60,25 @@ function buildCredentials() {
     };
   }
 
-  // ~/.aws/credentials + ~/.aws/config  (profile-based, recommended)
-  try {
-    return fromIni({ profile });
-  } catch {
-    // No ~/.aws file — let SDK use instance/task role
-    return undefined;
+  // 2. Named profile — only attempt on machines that actually have ~/.aws
+  if (process.env.AWS_PROFILE) {
+    try { return fromIni({ profile }); } catch { return undefined; }
   }
+
+  // 3. Only try ~/.aws/credentials if the file actually exists
+  //    (avoids SDK errors on Railway/Render/Heroku which have no home-dir creds)
+  try {
+    const fs   = require('fs');
+    const path = require('path');
+    const home = process.env.HOME || process.env.USERPROFILE || '';
+    const credsFile = path.join(home, '.aws', 'credentials');
+    if (home && fs.existsSync(credsFile)) {
+      return fromIni({ profile });
+    }
+  } catch { /* ignore */ }
+
+  // 4. Fall back to instance/task role (EC2 / ECS / Lambda)
+  return undefined;
 }
 
 const clientConfig = {

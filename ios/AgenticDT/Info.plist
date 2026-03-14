@@ -22,6 +22,33 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ── Backend URL (injected at build time via BACKEND_BASE_URL build setting) ── -->
+	<key>BackendBaseURL</key>
+	<string>$(BACKEND_BASE_URL)</string>
+
+	<!-- ── App Transport Security ──────────────────────────────────────────────── -->
+	<!-- Production HTTPS is enforced by default (NSAllowsArbitraryLoads = false).  -->
+	<!-- localhost HTTP is explicitly allowed for Debug/Simulator builds only.      -->
+	<!-- Remove the NSExceptionDomains block before App Store submission if desired. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<!-- Simulator / local dev only — never an issue in App Store builds
+			     because production uses HTTPS and localhost isn't reachable. -->
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+		</dict>
+	</dict>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

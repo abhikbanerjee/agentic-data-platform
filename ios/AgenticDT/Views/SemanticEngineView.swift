@@ -22,11 +22,18 @@ struct SemanticEngineView: View {
                         subtitle: "Unified metadata registry, knowledge graph & semantic search"
                     )
 
-                    // Stats row
-                    HStack(spacing: 12) {
-                        MiniStatCard(value: "1,842", label: "Entities", icon: "cylinder.fill", color: Color("AccentCyan"))
-                        MiniStatCard(value: "8,431", label: "Relations", icon: "arrow.triangle.branch", color: .purple)
-                        MiniStatCard(value: "< 2s", label: "Discovery", icon: "bolt.fill", color: .orange)
+                    // Stats row — 6 metrics in 2 rows of 3
+                    VStack(spacing: 10) {
+                        HStack(spacing: 10) {
+                            MiniStatCard(value: "8.2K",  label: "Assets",    icon: "internaldrive.fill",     color: Color("AccentCyan"))
+                            MiniStatCard(value: "1,842", label: "Entities",  icon: "cylinder.fill",          color: .purple)
+                            MiniStatCard(value: "8,431", label: "Relations", icon: "arrow.triangle.branch",  color: .blue)
+                        }
+                        HStack(spacing: 10) {
+                            MiniStatCard(value: "3,450", label: "Glossary",  icon: "text.book.closed.fill",  color: .orange)
+                            MiniStatCard(value: "547",   label: "Datasets",  icon: "cloud.fill",             color: .green)
+                            MiniStatCard(value: "< 2s",  label: "Discovery", icon: "bolt.fill",              color: Color("AccentCyan"))
+                        }
                     }
                     .padding(.horizontal)
 
@@ -104,6 +111,90 @@ struct SemanticEngineView: View {
                         }
                         .padding(.horizontal)
                     }
+                    // Data Assets & Lineage
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("DATA ASSETS & LINEAGE")
+                            .font(.caption).bold().foregroundColor(.secondary)
+                            .padding(.horizontal)
+                        CardView {
+                            VStack(spacing: 0) {
+                                // Header row
+                                HStack {
+                                    Text("Asset").frame(maxWidth: .infinity, alignment: .leading)
+                                    Text("Quality").frame(width: 54, alignment: .center)
+                                    Text("Lineage").frame(width: 62, alignment: .center)
+                                }
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .background(Color(.systemGroupedBackground))
+
+                                ForEach(SemanticDataAsset.samples) { asset in
+                                    HStack(alignment: .center, spacing: 8) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(asset.name)
+                                                .font(.system(.caption, design: .monospaced))
+                                                .foregroundColor(.primary)
+                                            Text(asset.owner)
+                                                .font(.caption2).foregroundColor(.secondary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                        Text("\(asset.quality)%")
+                                            .font(.caption).bold()
+                                            .foregroundColor(.green)
+                                            .frame(width: 54, alignment: .center)
+
+                                        Text(asset.lineage)
+                                            .font(.caption2).bold()
+                                            .padding(.horizontal, 7).padding(.vertical, 3)
+                                            .background(asset.lineage == "Full" ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
+                                            .foregroundColor(asset.lineage == "Full" ? .green : .orange)
+                                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                                            .frame(width: 62, alignment: .center)
+                                    }
+                                    .padding(.horizontal, 14).padding(.vertical, 10)
+                                    if asset.id != SemanticDataAsset.samples.last?.id { Divider().padding(.leading, 14) }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    // Metadata Catalog Coverage
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("METADATA CATALOG COVERAGE")
+                            .font(.caption).bold().foregroundColor(.secondary)
+                            .padding(.horizontal)
+                        CardView {
+                            VStack(spacing: 10) {
+                                ForEach(CoverageItem.samples) { item in
+                                    HStack(spacing: 10) {
+                                        Text(item.label)
+                                            .font(.caption2).foregroundColor(.secondary)
+                                            .frame(width: 108, alignment: .leading)
+                                        GeometryReader { geo in
+                                            ZStack(alignment: .leading) {
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .fill(Color(.systemGray5))
+                                                    .frame(height: 8)
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .fill(Color("AccentCyan"))
+                                                    .frame(width: geo.size.width * CGFloat(item.value) / 100, height: 8)
+                                            }
+                                        }
+                                        .frame(height: 8)
+                                        Text("\(item.value)%")
+                                            .font(.caption2).bold().foregroundColor(.primary)
+                                            .frame(width: 34, alignment: .trailing)
+                                    }
+                                }
+                            }
+                            .padding(14)
+                        }
+                        .padding(.horizontal)
+                    }
+
                     .padding(.bottom, 20)
                 }
             }
@@ -113,6 +204,41 @@ struct SemanticEngineView: View {
             .animation(.easeInOut, value: selectedEntity?.id)
         }
     }
+}
+
+// MARK: - Data Assets Model
+
+struct SemanticDataAsset: Identifiable {
+    let id: String
+    let name: String
+    let owner: String
+    let quality: Int
+    let governance: String
+    let lineage: String
+
+    static let samples: [SemanticDataAsset] = [
+        SemanticDataAsset(id: "1", name: "customer_master",  owner: "Data Eng",  quality: 98, governance: "Strict",   lineage: "Full"),
+        SemanticDataAsset(id: "2", name: "orders_fact",      owner: "Commerce",  quality: 94, governance: "Standard", lineage: "Full"),
+        SemanticDataAsset(id: "3", name: "product_catalog",  owner: "Catalog",   quality: 91, governance: "Standard", lineage: "Partial"),
+        SemanticDataAsset(id: "4", name: "revenue_daily",    owner: "Finance",   quality: 99, governance: "Strict",   lineage: "Full"),
+        SemanticDataAsset(id: "5", name: "events_stream",    owner: "Analytics", quality: 87, governance: "Basic",    lineage: "Partial"),
+    ]
+}
+
+// MARK: - Coverage Model
+
+struct CoverageItem: Identifiable {
+    let id: String
+    let label: String
+    let value: Int
+
+    static let samples: [CoverageItem] = [
+        CoverageItem(id: "tables",    label: "Tables",         value: 95),
+        CoverageItem(id: "columns",   label: "Columns",        value: 92),
+        CoverageItem(id: "relations", label: "Relationships",  value: 87),
+        CoverageItem(id: "glossary",  label: "Business Terms", value: 78),
+        CoverageItem(id: "quality",   label: "Data Quality",   value: 84),
+    ]
 }
 
 // MARK: - Knowledge Graph Canvas

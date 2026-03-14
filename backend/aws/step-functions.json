@@ -1,0 +1,88 @@
+{
+  "Comment": "AgenticDT Ingestion Pipeline — S3 → Glue ETL → Lambda Quality Profiler → Metadata Ready",
+  "StartAt": "CheckMode",
+  "States": {
+
+    "CheckMode": {
+      "Type": "Choice",
+      "Comment": "Route to quality-only profiler when skip_etl=true (re-uses last ETL output), otherwise run full pipeline",
+      "Choices": [
+        {
+          "Variable": "$.skip_etl",
+          "BooleanEquals": true,
+          "Next": "RunQualityProfiler"
+        }
+      ],
+      "Default": "RunGlueETL"
+    },
+
+    "RunGlueETL": {
+      "Type": "Task",
+      "Comment": "Parse CSV + transform column using PySpark on AWS Glue",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "agenticdt-etl-pipeline",
+        "Arguments": {
+          "--input_s3_path.$":    "$.input_s3_path",
+          "--parsed_s3_path.$":   "$.parsed_s3_path",
+          "--output_s3_path.$":   "$.output_s3_path",
+          "--transform_column.$": "$.transform_column",
+          "--new_column_name.$":  "$.new_column_name",
+          "--run_id.$":           "$.run_id"
+        }
+      },
+      "ResultPath": "$.glue_result",
+      "Retry": [
+        {
+          "ErrorEquals": ["Glue.AWSGlueException", "States.TaskFailed"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "GlueFailed",
+          "ResultPath": "$.glue_error"
+        }
+      ],
+      "Next": "RunQualityProfiler"
+    },
+
+    "RunQualityProfiler": {
+      "Type": "Task",
+      "Comment": "Quality check + column profiling via Lambda. Failures are caught and bypassed — pipeline always proceeds to metadata generation.",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "agenticdt-quality-profiler",
+        "Payload": {
+          "run_id.$":           "$.run_id",
+          "output_s3_path.$":   "$.output_s3_path",
+          "results_s3_path.$":  "$.results_s3_path",
+          "source_file.$":      "$.source_file"
+        }
+      },
+      "ResultPath": "$.profiler_result",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineSucceeded",
+          "ResultPath": "$.quality_warning"
+        }
+      ],
+      "Next": "PipelineSucceeded"
+    },
+
+    "PipelineSucceeded": {
+      "Type": "Succeed",
+      "Comment": "ETL complete — metadata generation + AI enrichment will run. Quality step may have been bypassed (check $.quality_warning)."
+    },
+
+    "GlueFailed": {
+      "Type": "Fail",
+      "Error": "GlueETLFailed",
+      "Cause": "The Glue ETL job failed — check CloudWatch Logs /aws-glue/jobs/error"
+    }
+  }
+}

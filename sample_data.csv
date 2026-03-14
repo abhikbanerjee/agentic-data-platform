@@ -1,0 +1,31 @@
+id,customer_name,region,product_category,units_sold,unit_price,revenue,satisfaction_score
+1,Alice Johnson,North America,Electronics,120,499.99,59998.80,4.5
+2,Bob Smith,Europe,Apparel,85,29.95,2545.75,3.8
+3,Carol Williams,Asia Pacific,Electronics,200,299.99,59998.00,4.7
+4,David Brown,North America,Home & Garden,45,89.99,4049.55,4.1
+5,Emma Davis,Europe,Electronics,310,149.99,46496.90,4.9
+6,Frank Miller,Latin America,Apparel,60,19.95,1197.00,3.5
+7,Grace Wilson,Asia Pacific,Home & Garden,90,74.99,6749.10,4.3
+8,Henry Moore,North America,Electronics,175,599.99,104998.25,4.6
+9,Isabel Taylor,Europe,Apparel,130,24.95,3243.50,4.0
+10,James Anderson,Asia Pacific,Electronics,95,399.99,37999.05,4.4
+11,Karen Thomas,North America,Home & Garden,70,54.99,3849.30,3.9
+12,Liam Jackson,Europe,Electronics,220,199.99,43997.80,4.8
+13,Maria White,Latin America,Apparel,40,34.95,1398.00,3.6
+14,Nathan Harris,Asia Pacific,Home & Garden,55,99.99,5499.45,4.2
+15,Olivia Martin,North America,Electronics,160,449.99,71998.40,4.5
+16,Paul Garcia,Europe,Apparel,100,27.95,2795.00,3.7
+17,Quinn Martinez,Asia Pacific,Electronics,250,249.99,62497.50,4.6
+18,Rachel Robinson,North America,Home & Garden,35,119.99,4199.65,4.0
+19,Samuel Clark,Europe,Electronics,180,349.99,62998.20,4.7
+20,Tina Rodriguez,Latin America,Apparel,75,22.95,1721.25,3.8
+21,Uma Lewis,Asia Pacific,Home & Garden,110,64.99,7148.90,4.4
+22,Victor Lee,North America,Electronics,140,529.99,74198.60,4.5
+23,Wendy Walker,Europe,Apparel,95,31.95,3035.25,3.9
+24,Xavier Hall,Asia Pacific,Electronics,190,279.99,53198.10,4.8
+25,Yara Allen,North America,Home & Garden,65,84.99,5524.35,4.1
+26,Zara Young,Europe,Electronics,230,179.99,41397.70,4.6
+27,,Latin America,Apparel,50,18.95,947.50,3.4
+28,Aaron King,Asia Pacific,Home & Garden,,79.99,,4.3
+29,Bella Wright,North America,Electronics,105,479.99,50398.95,
+30,Carlos Scott,Europe,Apparel,115,26.95,3099.25,4.0

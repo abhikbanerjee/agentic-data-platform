@@ -1,8 +1,8 @@
 import Foundation
 
-/// Handles all communication with the OpenAI Chat Completions API.
-/// The API key is stored exclusively in the Keychain — never in source code,
-/// UserDefaults, or any plaintext store.
+/// Handles all communication with the AgenticDT backend proxy for chat completions.
+/// The backend URL is resolved from AppConfig (injected per build scheme via Xcode build settings).
+/// AWS credentials NEVER appear in this file or any other client-side code.
 @MainActor
 class OpenAIService: ObservableObject {
 
@@ -14,88 +14,83 @@ class OpenAIService: ObservableObject {
     }
 
     enum OpenAIError: LocalizedError {
-        case noKey
+        case notConfigured
         case httpError(Int)
         case parseError
         case networkError(Error)
 
         var errorDescription: String? {
             switch self {
-            case .noKey:
-                return "No API key set. Tap the gear icon to add your OpenAI key."
+            case .notConfigured:
+                return "Backend not configured. Please contact your administrator."
             case .httpError(let code):
-                return "OpenAI returned HTTP \(code). Check your key and quota."
+                return "Backend returned HTTP \(code). Please try again."
             case .parseError:
-                return "Could not parse the OpenAI response."
+                return "Could not parse the response from the server."
             case .networkError(let err):
                 return "Network error: \(err.localizedDescription)"
             }
         }
     }
 
-    // MARK: - Private constants
+    // MARK: - Constants
 
-    private static let keychainKey = "openai_api_key"
-    private static let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
+    private static let keychainKey = "backend_configured"
 
     // MARK: - Published state
 
     @Published var hasKey: Bool = false
-    @Published var maskedKey: String = "Not set"
+    @Published var maskedKey: String = "Not configured"
 
     // MARK: - Init
 
     init() {
-        refreshKeyState()
+        refreshBackendState()
     }
 
-    // MARK: - Key management (Keychain-backed)
+    // MARK: - Backend configuration management (Keychain-backed)
 
-    func saveKey(_ raw: String) {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        KeychainHelper.save(trimmed, for: Self.keychainKey)
-        refreshKeyState()
+    func markBackendConfigured() {
+        KeychainHelper.save("configured", for: Self.keychainKey)
+        refreshBackendState()
     }
 
-    func clearKey() {
+    func clearBackendConfig() {
         KeychainHelper.delete(for: Self.keychainKey)
-        refreshKeyState()
+        refreshBackendState()
     }
 
-    private func refreshKeyState() {
-        if let key = KeychainHelper.load(for: Self.keychainKey), !key.isEmpty {
+    private func refreshBackendState() {
+        if let value = KeychainHelper.load(for: Self.keychainKey), !value.isEmpty {
             hasKey = true
-            maskedKey = maskKey(key)
+            maskedKey = "Connected to \(AppConfig.backendURL)"
         } else {
             hasKey = false
-            maskedKey = "Not set"
+            maskedKey = "Not configured"
         }
-    }
-
-    private func maskKey(_ key: String) -> String {
-        guard key.count > 10 else { return String(repeating: "•", count: key.count) }
-        return String(key.prefix(7)) + "••••••••" + String(key.suffix(4))
     }
 
     // MARK: - API call
 
-    func sendMessages(_ messages: [Message]) async throws -> String {
-        guard let key = KeychainHelper.load(for: Self.keychainKey), !key.isEmpty else {
-            throw OpenAIError.noKey
+    /// Send a chat message to the backend proxy.
+    /// - Parameters:
+    ///   - messages: Conversation history
+    ///   - systemPrompt: Optional system instruction for the model
+    func sendMessages(_ messages: [Message], systemPrompt: String = "") async throws -> String {
+        guard hasKey else { throw OpenAIError.notConfigured }
+
+        guard let url = URL(string: AppConfig.chatEndpoint) else {
+            throw OpenAIError.parseError
         }
 
-        var request = URLRequest(url: Self.endpoint)
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 30
 
         let body: [String: Any] = [
-            "model": "gpt-4o",
-            "messages": messages.map { ["role": $0.role, "content": $0.content] },
-            "temperature": 0.7,
-            "max_tokens": 1024
+            "messages":    messages.map { ["role": $0.role, "content": $0.content] },
+            "systemPrompt": systemPrompt,
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -106,23 +101,18 @@ class OpenAIService: ObservableObject {
             throw OpenAIError.networkError(error)
         }
 
-        guard let http = response as? HTTPURLResponse else {
-            throw OpenAIError.parseError
-        }
-        guard http.statusCode == 200 else {
-            throw OpenAIError.httpError(http.statusCode)
-        }
+        guard let http = response as? HTTPURLResponse else { throw OpenAIError.parseError }
+        guard http.statusCode == 200 else { throw OpenAIError.httpError(http.statusCode) }
 
-        guard
-            let json       = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let choices    = json["choices"] as? [[String: Any]],
-            let first      = choices.first,
-            let message    = first["message"] as? [String: Any],
-            let content    = message["content"] as? String
-        else {
-            throw OpenAIError.parseError
+        // Try the new simple format { "reply": "..." } first, then legacy OpenAI format
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let reply = json["reply"] as? String { return reply }
+            if let choices = json["choices"] as? [[String: Any]],
+               let msg = choices.first?["message"] as? [String: Any],
+               let content = msg["content"] as? String {
+                return content
+            }
         }
-
-        return content
+        throw OpenAIError.parseError
     }
 }

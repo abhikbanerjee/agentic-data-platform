@@ -8,10 +8,10 @@ import {
   Brain, Users, Settings, ChevronRight, Play, Pause, RotateCw,
   CheckCircle, Clock, AlertTriangle, Home, Layers, Lock, GitBranch,
   BarChart3, Workflow, Filter, Search, RefreshCw, Download, Plus,
-  Gauge, Eye, Cloud, MapPin, Copy, Menu, X, MessageSquare
+  Gauge, Eye, Cloud, MapPin, Copy, Menu, X, MessageSquare, ChevronDown, Upload, Paperclip
 } from 'lucide-react';
 
-export default function AgenticDataPlatform() {
+function AgenticDataPlatform() {
   const [activeNav, setActiveNav] = useState('dashboard');
   const [agentRunning, setAgentRunning] = useState(false);
   const [schemaDetected, setSchemaDetected] = useState(false);
@@ -19,7 +19,41 @@ export default function AgenticDataPlatform() {
   const [mlModelsDeployed, setMlModelsDeployed] = useState(3);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [qualityScore, setQualityScore] = useState(87);
-  const [selectedPipeline, setSelectedPipeline] = useState('etl-main');
+  const [selectedPipeline, setSelectedPipeline] = useState(null);
+
+  // ── Pipeline / AWS state ──────────────────────────────────────────────────
+  const [awsPipelines, setAwsPipelines] = useState(null);       // null = not loaded
+  const [pipelinesLoading, setPipelinesLoading] = useState(false);
+  const [pipelinesError, setPipelinesError] = useState(null);
+  const [selectedDag, setSelectedDag] = useState(null);
+  const [dagLoading, setDagLoading] = useState(false);
+  const [healingLog, setHealingLog] = useState([]);
+  const [isHealing, setIsHealing] = useState(false);
+  const [healingDone, setHealingDone] = useState(false);
+  const [runningPipeline, setRunningPipeline] = useState(null);   // id of pipeline being triggered
+
+  // ── Pipeline refs + effects (hoisted here to avoid hook-inside-const-component flicker) ──
+  const healLogRef = useRef(null);
+
+  // Auto-scroll healing console
+  useEffect(() => {
+    if (healLogRef.current) healLogRef.current.scrollTop = healLogRef.current.scrollHeight;
+  }, [healingLog]);
+
+  // Load pipelines when Pipelines tab is first opened
+  useEffect(() => {
+    if (activeNav === 'pipelines' && awsPipelines === null && !pipelinesLoading) {
+      fetchPipelines();
+    }
+  }, [activeNav]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load DAG whenever the selected pipeline changes (only on pipelines tab)
+  useEffect(() => {
+    if (activeNav !== 'pipelines') return;
+    if (activePipeline && (activePipeline.type === 'glue' || activePipeline.type === 'stepfunction')) {
+      fetchDag(activePipeline);
+    }
+  }, [selectedPipeline, activeNav]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mock dashboard data
   const kpiData = [
@@ -328,247 +362,1187 @@ export default function AgenticDataPlatform() {
     </div>
   );
 
-  // Ingestion Hub View
+  // ── Ingestion pipeline state ────────────────────────────────────────────────
+  const [ingestFile, setIngestFile]           = useState(null);
+  const [ingestTransformCol, setIngestTransformCol] = useState('');
+  const [ingestNewCol, setIngestNewCol]       = useState('');
+  const [ingestRunning, setIngestRunning]     = useState(false);
+  const [ingestRun, setIngestRun]             = useState(null);
+  const [ingestSteps, setIngestSteps]         = useState([]);
+  const [ingestQuality, setIngestQuality]     = useState(null);
+  const [ingestError, setIngestError]         = useState(null);
+  const [ingestPipelineReady, setIngestPipelineReady] = useState(null);
+  const [ingestLogs, setIngestLogs]           = useState([]);
+  const [ingestLogsOpen, setIngestLogsOpen]   = useState(false);
+  const [ingestLogsLoading, setIngestLogsLoading] = useState(false);
+  const [ingestSample, setIngestSample]       = useState(null);
+  const [chatAttachFile, setChatAttachFile]   = useState(null);
+  // Quality-only mode
+  const [ingestMode, setIngestMode]           = useState('full');       // 'full' | 'quality'
+  const [lastEtlRun, setLastEtlRun]           = useState(null);         // last successful ETL run info
+  const [lastEtlRunLoading, setLastEtlRunLoading] = useState(false);
+  // Passcode gate
+  const [passcode, setPasscode]               = useState('');           // verified passcode for this session
+  const [showPasscodeModal, setShowPasscodeModal] = useState(false);
+  const [passcodeInput, setPasscodeInput]     = useState('');
+  const [passcodeError, setPasscodeError]     = useState('');
+  const [pendingAction, setPendingPipelineAction] = useState(null);     // 'full' | 'quality' — action to run after passcode
+  const ingestFileRef                         = useRef(null);
+  const ingestPollRef                         = useRef(null);
+  const chatFileInputRef                      = useRef(null);
+
+  const [ingestMeta, setIngestMeta]               = useState(null);  // raw metadata from S3
+  const [ingestMetaEdits, setIngestMetaEdits]     = useState({});    // { colName: { description, tags, pii_flag } }
+  const [ingestMetaLoading, setIngestMetaLoading] = useState(false);
+  const [ingestMetaEnriching, setIngestMetaEnriching] = useState(false);
+  const [ingestMetaRegistering, setIngestMetaRegistering] = useState(false);
+  const [ingestMetaRegistered, setIngestMetaRegistered] = useState(null); // { catalog_id, registered_at }
+
+  useEffect(() => {
+    if (activeNav !== 'ingestion') return;
+    fetch(`${BACKEND}/api/ingest/config`)
+      .then(r => r.json())
+      .then(d => setIngestPipelineReady(d.configured))
+      .catch(() => setIngestPipelineReady(null)); // null = backend unreachable (don't show warning)
+  }, [activeNav]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => () => clearInterval(ingestPollRef.current), []);
+
+  const startIngestPoll = (executionArn, runId) => {
+    clearInterval(ingestPollRef.current);
+    ingestPollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch(`${BACKEND}/api/ingest/status/${encodeURIComponent(executionArn)}?runId=${runId}`);
+        const d = await r.json();
+        if (d.steps) setIngestSteps(d.steps);
+
+        if (d.sfnStatus === 'SUCCEEDED') {
+          // Pipeline finished — stop polling regardless of quality outcome
+          clearInterval(ingestPollRef.current);
+          setIngestRunning(false);
+          if (d.runId) fetchIngestSample(d.runId);
+
+          // Set quality state: use real stats, or a bypass placeholder so downstream
+          // conditions (metadata panel, chat message) always have something to work with
+          if (d.qualityStats) {
+            setIngestQuality(d.qualityStats);
+          } else {
+            setIngestQuality({
+              bypassed:      true,
+              passed:        null,
+              quality_score: null,
+              warning:       d.qualityWarningMsg || 'Quality check was skipped — pipeline continued to metadata generation',
+            });
+          }
+
+          // Always load enriched metadata — independent of quality outcome
+          if (d.enrichedMeta) {
+            setIngestMeta(d.enrichedMeta);
+            const edits = {};
+            (d.enrichedMeta.columns || []).forEach(col => {
+              edits[col.name] = {
+                description: col.description || '',
+                tags:        (col.tags || []).join(', '),
+                pii_flag:    col.pii_flag || false,
+              };
+            });
+            setIngestMetaEdits(edits);
+          }
+        } else if (d.errorDetail) {
+          setIngestError(d.errorDetail);
+          clearInterval(ingestPollRef.current);
+          setIngestRunning(false);
+        } else if (['FAILED','TIMED_OUT','ABORTED'].includes(d.sfnStatus)) {
+          clearInterval(ingestPollRef.current);
+          setIngestRunning(false);
+        }
+      } catch { /* keep polling */ }
+    }, 5000);
+  };
+
+  // ── Passcode helpers ────────────────────────────────────────────────────────
+  const passcodeHeaders = () => passcode ? { 'x-pipeline-passcode': passcode } : {};
+
+  const guardWithPasscode = (action) => {
+    if (passcode) {
+      // Already verified this session — run immediately
+      if (action === 'full') _doIngestRun();
+      else _doQualityOnlyRun();
+    } else {
+      setPendingPipelineAction(action);
+      setPasscodeInput('');
+      setPasscodeError('');
+      setShowPasscodeModal(true);
+    }
+  };
+
+  const handlePasscodeSubmit = async () => {
+    if (passcodeInput.length !== 4) { setPasscodeError('Enter exactly 4 digits'); return; }
+    // Verify against backend by making a lightweight probe request
+    try {
+      const r = await fetch(`${BACKEND}/api/ingest/config`, {
+        headers: { 'x-pipeline-passcode': passcodeInput },
+      });
+      if (r.status === 401 || r.status === 403) {
+        const d = await r.json().catch(() => ({}));
+        setPasscodeError(d.error || 'Incorrect passcode — try again');
+        return;
+      }
+      // Accepted — store for the session and proceed
+      setPasscode(passcodeInput);
+      setShowPasscodeModal(false);
+      if (pendingAction === 'full') _doIngestRun(passcodeInput);
+      else _doQualityOnlyRun(passcodeInput);
+    } catch {
+      setPasscodeError('Could not reach backend — check connection');
+    }
+  };
+
+  const handleIngestRun = () => guardWithPasscode('full');
+
+  const _doIngestRun = async (code) => {
+    const pc = code || passcode;
+    if (!ingestFile) return;
+    setIngestRunning(true);
+    setIngestError(null);
+    setIngestQuality(null);
+    setIngestRun(null);
+    setIngestSteps([
+      { id: 1, name: 'Load to S3',           icon: '☁️',  status: 'running' },
+      { id: 2, name: 'Parse with Glue',       icon: '⚙️',  status: 'waiting' },
+      { id: 3, name: 'Transform Column',       icon: '🔄',  status: 'waiting' },
+      { id: 4, name: 'Quality & Profile',       icon: '🔬',  status: 'waiting' },
+    ]);
+    const form = new FormData();
+    form.append('file', ingestFile);
+    form.append('transformColumn', ingestTransformCol || '');
+    form.append('newColumnName',   ingestNewCol || '');
+    try {
+      const r = await fetch(`${BACKEND}/api/ingest/start`, {
+        method: 'POST', body: form,
+        headers: pc ? { 'x-pipeline-passcode': pc } : {},
+      });
+      const d = await r.json();
+      if (r.status === 401 || r.status === 403) {
+        setPasscode(''); setIngestError('Passcode rejected — please re-enter'); setIngestRunning(false); return;
+      }
+      if (!r.ok) { setIngestError(d.error || 'Failed to start pipeline'); setIngestRunning(false); return; }
+      setIngestRun(d);
+      if (d.steps) setIngestSteps(d.steps);
+      startIngestPoll(d.executionArn, d.runId);
+    } catch (e) {
+      setIngestError(`Network error: ${e.message}`);
+      setIngestRunning(false);
+    }
+  };
+
+  const fetchIngestLogs = async () => {
+    if (!ingestRun?.runId) return;
+    setIngestLogsLoading(true);
+    try {
+      const r = await fetch(`${BACKEND}/api/ingest/logs?runId=${ingestRun.runId}`);
+      const d = await r.json();
+      setIngestLogs(d.events || []);
+    } catch {
+      setIngestLogs([{ timestamp: Date.now(), message: 'Could not fetch logs — check backend is running', logGroup: '' }]);
+    } finally {
+      setIngestLogsLoading(false);
+    }
+  };
+
+  const fetchIngestSample = async (runId) => {
+    try {
+      const r = await fetch(`${BACKEND}/api/ingest/sample/${runId}`);
+      if (r.ok) {
+        const d = await r.json();
+        setIngestSample(d);
+      }
+    } catch { /* sample is optional */ }
+  };
+
+  const fetchMetadata = async (runId, enrich = false) => {
+    setIngestMetaLoading(true);
+    try {
+      const endpoint = enrich
+        ? `${BACKEND}/api/metadata/${runId}/enrich`
+        : `${BACKEND}/api/metadata/${runId}`;
+      const r = await fetch(endpoint, enrich ? { method: 'POST' } : undefined);
+      if (r.ok) {
+        const d = await r.json();
+        setIngestMeta(d);
+        // Initialise edits map from existing values
+        const edits = {};
+        (d.columns || []).forEach(col => {
+          edits[col.name] = {
+            description: col.description || '',
+            tags:        (col.tags || []).join(', '),
+            pii_flag:    col.pii_flag || false,
+          };
+        });
+        setIngestMetaEdits(edits);
+      }
+    } catch (e) { console.error('fetchMetadata', e); }
+    finally { setIngestMetaLoading(false); setIngestMetaEnriching(false); }
+  };
+
+  const handleEnrichMeta = async () => {
+    if (!ingestRun?.runId) return;
+    setIngestMetaEnriching(true);
+    await fetchMetadata(ingestRun.runId, true);
+  };
+
+  const handleRegisterMetadata = async () => {
+    if (!ingestMeta || !ingestRun?.runId) return;
+    setIngestMetaRegistering(true);
+    try {
+      // Merge user edits back into columns
+      const approvedColumns = (ingestMeta.columns || []).map(col => ({
+        ...col,
+        description: ingestMetaEdits[col.name]?.description ?? col.description,
+        tags:        (ingestMetaEdits[col.name]?.tags || '').split(',').map(t => t.trim()).filter(Boolean),
+        pii_flag:    ingestMetaEdits[col.name]?.pii_flag ?? col.pii_flag,
+      }));
+      const payload = { ...ingestMeta, columns: approvedColumns };
+      const r = await fetch(`${BACKEND}/api/metadata/${ingestRun.runId}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setIngestMetaRegistered(d);
+      } else {
+        const e = await r.json();
+        alert(`Registration failed: ${e.error}`);
+      }
+    } catch (e) { alert(`Registration error: ${e.message}`); }
+    finally { setIngestMetaRegistering(false); }
+  };
+
+  const fetchLastEtlRun = async () => {
+    setLastEtlRunLoading(true);
+    try {
+      const r = await fetch(`${BACKEND}/api/ingest/last-etl-run`);
+      if (r.ok) setLastEtlRun(await r.json());
+      else setLastEtlRun(null);
+    } catch { setLastEtlRun(null); }
+    finally { setLastEtlRunLoading(false); }
+  };
+
+  const handleQualityOnlyRun = () => guardWithPasscode('quality');
+
+  const _doQualityOnlyRun = async (code) => {
+    const pc = code || passcode;
+    setIngestRunning(true);
+    setIngestError(null);
+    setIngestQuality(null);
+    setIngestRun(null);
+    setIngestSteps([
+      { id: 1, name: 'Load to S3',       icon: '☁️',  status: 'skipped' },
+      { id: 2, name: 'Parse with Glue',  icon: '⚙️',  status: 'skipped' },
+      { id: 3, name: 'Transform Column', icon: '🔄',  status: 'skipped' },
+      { id: 4, name: 'Quality & Profile',icon: '🔬',  status: 'running' },
+    ]);
+    try {
+      const r = await fetch(`${BACKEND}/api/ingest/quality-only`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(pc ? { 'x-pipeline-passcode': pc } : {}) },
+        body: JSON.stringify({}),
+      });
+      const d = await r.json();
+      if (r.status === 401 || r.status === 403) {
+        setPasscode(''); setIngestError('Passcode rejected — please re-enter'); setIngestRunning(false); return;
+      }
+      if (!r.ok) { setIngestError(d.error || 'Failed to start quality check'); setIngestRunning(false); return; }
+      setIngestRun(d);
+      if (d.steps) setIngestSteps(d.steps);
+      startIngestPoll(d.executionArn, d.runId);
+    } catch (e) {
+      setIngestError(`Network error: ${e.message}`);
+      setIngestRunning(false);
+    }
+  };
+
+  const ingestStepColor = (status) => {
+    if (status === 'done')    return { ring: 'border-green-500 bg-green-50',   label: 'bg-green-100 text-green-800' };
+    if (status === 'running') return { ring: 'border-blue-500 bg-blue-50',     label: 'bg-blue-100 text-blue-800' };
+    if (status === 'warning') return { ring: 'border-yellow-400 bg-yellow-50', label: 'bg-yellow-100 text-yellow-700' };
+    if (status === 'error')   return { ring: 'border-red-500 bg-red-50',       label: 'bg-red-100 text-red-800' };
+    if (status === 'skipped') return { ring: 'border-gray-200 bg-gray-50 opacity-50', label: 'bg-gray-100 text-gray-400' };
+    return                           { ring: 'border-gray-200 bg-gray-50',     label: 'bg-gray-100 text-gray-500' };
+  };
+
   const IngestionHubView = () => (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Ingestion Hub</h2>
-        <p className="text-gray-600 mb-6">Real-time & Semi-Real-Time Streaming with Agentic Schema Detection</p>
+        <h2 className="text-2xl font-bold text-gray-900">Ingestion Hub</h2>
+        <p className="text-gray-500 mt-1">CSV → S3 → Glue ETL → Column Transform → Lambda Quality Check — one click</p>
       </div>
 
-      {/* Ingestion Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={Zap}
-          label="Active Streams"
-          value="284"
-          change="+18"
-          color="teal"
-        />
-        <StatCard
-          icon={Activity}
-          label="Avg Throughput"
-          value="3.2M"
-          change="msgs/sec"
-          color="teal"
-        />
-        <StatCard
-          icon={Clock}
-          label="Avg Lag"
-          value="198ms"
-          change="-45ms"
-          color="teal"
-        />
-        <StatCard
-          icon={CheckCircle}
-          label="Schema Health"
-          value="97.2%"
-          change="+2.1%"
-          color="teal"
-        />
-      </div>
-
-      {/* Streaming Topology */}
-      <StreamingTopology />
-
-      {/* Live Streams Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Network className="w-5 h-5 text-teal-600" />
-            Live Confluent/MSK Streams
-          </h3>
+      {ingestPipelineReady === false && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-900">Pipeline infrastructure not provisioned</p>
+              <p className="text-sm text-amber-700 mt-1">Run the one-time setup script to create the S3 bucket, Glue job, Lambda, and Step Functions state machine.</p>
+              <pre className="mt-3 bg-amber-100 rounded p-3 text-xs text-amber-900 overflow-x-auto">{`cd backend/aws\nchmod +x setup.sh && ./setup.sh`}</pre>
+              <p className="text-xs text-amber-600 mt-2">Then restart the backend — the Ingestion tab will become fully active.</p>
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Source</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Broker</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Processor</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Target</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Msg/sec</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Lag (ms)</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Schema</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {streamMetrics.map((stream) => (
-                <tr key={stream.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{stream.source.split(': ')[1]}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{stream.broker}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{stream.processor}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{stream.target}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">{stream.msgSec.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{stream.lag}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${stream.schema === 'detected' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {stream.schema}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${stream.status === 'healthy' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {stream.status}
-                    </span>
-                  </td>
-                </tr>
+      )}
+      {ingestPipelineReady === null && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+            <p className="text-sm text-gray-600">Checking pipeline status… make sure the backend is running at <code className="bg-gray-100 px-1 rounded text-xs">{BACKEND}</code></p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Passcode modal ── */}
+      {showPasscodeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-80 flex flex-col items-center">
+            <div className="text-4xl mb-3">🔐</div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Pipeline Passcode</h3>
+            <p className="text-sm text-gray-500 mb-5 text-center">Enter the 4-digit passcode to run the pipeline</p>
+            <div className="flex gap-3 mb-2">
+              {[0,1,2,3].map(i => (
+                <input
+                  key={i}
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={passcodeInput[i] || ''}
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    const next = passcodeInput.split('');
+                    next[i] = val.slice(-1);
+                    const newCode = next.join('').slice(0, 4);
+                    setPasscodeInput(newCode);
+                    setPasscodeError('');
+                    if (val && i < 3) {
+                      document.getElementById(`pc-digit-${i+1}`)?.focus();
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Backspace' && !passcodeInput[i] && i > 0) {
+                      document.getElementById(`pc-digit-${i-1}`)?.focus();
+                    }
+                    if (e.key === 'Enter' && passcodeInput.length === 4) handlePasscodeSubmit();
+                  }}
+                  id={`pc-digit-${i}`}
+                  className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-xl focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                />
               ))}
-            </tbody>
-          </table>
+            </div>
+            {passcodeError && <p className="text-xs text-red-600 mt-1 mb-3">{passcodeError}</p>}
+            <div className="flex gap-3 mt-4 w-full">
+              <button onClick={() => setShowPasscodeModal(false)}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button onClick={handlePasscodeSubmit} disabled={passcodeInput.length !== 4}
+                className="flex-1 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 disabled:opacity-40 transition">
+                Confirm
+              </button>
+            </div>
+            {passcode && (
+              <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
+                <span>✓</span> Session unlocked — passcode remembered
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Agentic Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button
-          onClick={handleAutoDetectSchema}
-          disabled={agentRunning}
-          className={`p-4 border-2 border-teal-200 bg-white rounded-lg hover:bg-teal-50 transition font-semibold text-teal-700 flex items-center justify-center gap-2 ${agentRunning ? 'opacity-60' : ''}`}
-        >
-          {agentRunning ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
-          {schemaDetected ? 'Schema Auto-Detected ✓' : 'Auto-Detect Schema'}
-        </button>
-        <button
-          onClick={handleHealLag}
-          disabled={agentRunning}
-          className={`p-4 border-2 border-cyan-200 bg-white rounded-lg hover:bg-cyan-50 transition font-semibold text-cyan-700 flex items-center justify-center gap-2 ${agentRunning ? 'opacity-60' : ''}`}
-        >
-          {agentRunning ? <RefreshCw className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
-          {lagHealed ? 'Lag Healed ✓' : 'Heal Lag'}
-        </button>
-        <button
-          onClick={() => setActiveNav('semantic')}
-          className="p-4 border-2 border-purple-200 bg-white rounded-lg hover:bg-purple-50 transition font-semibold text-purple-700 flex items-center justify-center gap-2"
-        >
-          <Database className="w-5 h-5" />
-          Register to Catalog
-        </button>
-      </div>
-    </div>
-  );
-
-  // Pipelines View
-  const PipelinesView = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Pipelines</h2>
-        <p className="text-gray-600 mb-6">Self-Healing DAGs with Airflow/Control-M and Agentic Remediation</p>
-      </div>
-
-      {/* Pipeline Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={GitBranch}
-          label="Active DAGs"
-          value="54"
-          change="+3"
-          color="teal"
-        />
-        <StatCard
-          icon={CheckCircle}
-          label="Success Rate"
-          value="99.1%"
-          change="+0.8%"
-          color="teal"
-        />
-        <StatCard
-          icon={Clock}
-          label="Avg Duration"
-          value="14m 32s"
-          change="-2m"
-          color="teal"
-        />
-        <StatCard
-          icon={AlertTriangle}
-          label="Self-Healed"
-          value="23"
-          change="this week"
-          color="teal"
-        />
-      </div>
-
-      {/* Pipelines List */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Pipeline Orchestration</h3>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        {/* ── Mode toggle ── */}
+        <div className="flex items-center gap-2 mb-5 p-1 bg-gray-100 rounded-lg w-fit">
+          <button
+            onClick={() => setIngestMode('full')}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${ingestMode === 'full' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            ⚡ Full Pipeline
+          </button>
+          <button
+            onClick={() => { setIngestMode('quality'); fetchLastEtlRun(); }}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${ingestMode === 'quality' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            🔬 Quality Check Only
+          </button>
         </div>
-        <div className="divide-y divide-gray-200">
-          {pipelineData.map((pipeline) => (
-            <div
-              key={pipeline.id}
-              className={`p-6 cursor-pointer hover:bg-gray-50 transition ${selectedPipeline === pipeline.id ? 'bg-teal-50 border-l-4 border-teal-600' : ''}`}
-              onClick={() => setSelectedPipeline(pipeline.id)}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h4 className="font-semibold text-gray-900">{pipeline.name}</h4>
-                  <p className="text-sm text-gray-600">Owner: {pipeline.owner} • {pipeline.dags} DAGs</p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  pipeline.status === 'running' ? 'bg-blue-100 text-blue-800' :
-                  pipeline.status === 'success' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {pipeline.status}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm text-gray-600">
-                <div>Last run: <span className="font-medium text-gray-900">{pipeline.lastRun}</span></div>
-                <div>Next run: <span className="font-medium text-gray-900">{pipeline.nextRun}</span></div>
-                {pipeline.healableIssues > 0 && (
-                  <div className="text-orange-600 font-medium">{pipeline.healableIssues} healable issues</div>
+
+        {/* ── Full pipeline config ── */}
+        {ingestMode === 'full' && (<>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div className="md:col-span-1">
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">1. Data Source (CSV)</label>
+              <div
+                onClick={() => ingestFileRef.current?.click()}
+                className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition ${ingestFile ? 'border-teal-400 bg-teal-50' : 'border-gray-300 hover:border-teal-400 hover:bg-gray-50'}`}
+              >
+                <input ref={ingestFileRef} type="file" accept=".csv,.tsv,.txt" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) { setIngestFile(f); setIngestRun(null); setIngestSteps([]); setIngestQuality(null); setIngestError(null); }}} />
+                {ingestFile ? (
+                  <><Database className="w-7 h-7 text-teal-600 mx-auto mb-1" /><p className="text-sm font-semibold text-teal-800 truncate">{ingestFile.name}</p><p className="text-xs text-teal-600">{(ingestFile.size/1024).toFixed(1)} KB</p></>
+                ) : (
+                  <><Plus className="w-7 h-7 text-gray-400 mx-auto mb-1" /><p className="text-sm text-gray-500">Click to upload CSV</p><p className="text-xs text-gray-400">Max 100 MB</p></>
                 )}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* DAG Visualization */}
-      {selectedPipeline && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">DAG Structure: {pipelineData.find(p => p.id === selectedPipeline)?.name}</h3>
-          <div className="flex items-center justify-between bg-gray-50 rounded p-4 border border-gray-200 mb-4">
-            <div className="text-center">
-              <div className="bg-green-100 border-2 border-green-500 rounded px-4 py-3 inline-block">
-                <div className="text-xs font-bold text-green-900">Extract</div>
-                <div className="text-sm text-green-800 mt-1">Source Extraction</div>
+            <div className="md:col-span-2 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">2. Column to Transform</label>
+                <input type="text" value={ingestTransformCol} onChange={e => setIngestTransformCol(e.target.value)}
+                  placeholder="e.g.  first_name  /  revenue  /  status"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                <p className="text-xs text-gray-400 mt-1">String → UPPER + char count · Integer → Low/Medium/High · Float → rounded + % of max</p>
               </div>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" />
-            <div className="text-center">
-              <div className="bg-blue-100 border-2 border-blue-500 rounded px-4 py-3 inline-block">
-                <div className="text-xs font-bold text-blue-900">Transform</div>
-                <div className="text-sm text-blue-800 mt-1">Data Transformation</div>
-              </div>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" />
-            <div className="text-center">
-              <div className="bg-purple-100 border-2 border-purple-500 rounded px-4 py-3 inline-block">
-                <div className="text-xs font-bold text-purple-900">Validate</div>
-                <div className="text-sm text-purple-800 mt-1">Quality Checks</div>
-              </div>
-            </div>
-            <ChevronRight className="w-6 h-6 text-gray-400" />
-            <div className="text-center">
-              <div className="bg-teal-100 border-2 border-teal-500 rounded px-4 py-3 inline-block">
-                <div className="text-xs font-bold text-teal-900">Load</div>
-                <div className="text-sm text-teal-800 mt-1">Target Load</div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">3. New Derived Column Name</label>
+                <input type="text" value={ingestNewCol} onChange={e => setIngestNewCol(e.target.value)}
+                  placeholder={ingestTransformCol ? `${ingestTransformCol}_derived` : 'e.g.  name_normalized'}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
               </div>
             </div>
           </div>
-          <button
-            onClick={() => setAgentRunning(true)}
-            className="w-full py-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition flex items-center justify-center gap-2"
-          >
-            <Play className="w-5 h-5" />
-            Trigger Self-Healing Agent
+          <button onClick={handleIngestRun} disabled={!ingestFile || ingestRunning || ingestPipelineReady === false || ingestPipelineReady === null}
+            className="w-full py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 disabled:opacity-50 transition flex items-center justify-center gap-2 text-base">
+            {ingestRunning ? <><RotateCw className="w-5 h-5 animate-spin" /> Pipeline Running…</> : <><Play className="w-5 h-5" /> Run Ingestion Pipeline</>}
           </button>
+        </>)}
+
+        {/* ── Quality-only config ── */}
+        {ingestMode === 'quality' && (<>
+          <div className="mb-5">
+            <p className="text-sm text-gray-600 mb-3">Runs the quality profiler + AI metadata enrichment against the last successful Glue ETL output — no file upload or ETL needed.</p>
+            <div className="border border-indigo-200 bg-indigo-50 rounded-lg p-4">
+              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">Last Successful ETL Run</p>
+              {lastEtlRunLoading && (
+                <p className="text-sm text-gray-500 animate-pulse">Fetching last run info…</p>
+              )}
+              {!lastEtlRunLoading && !lastEtlRun && (
+                <p className="text-sm text-red-600">No successful ETL run found. Run the full pipeline at least once first.</p>
+              )}
+              {!lastEtlRunLoading && lastEtlRun && (
+                <div className="space-y-1 text-sm">
+                  <div className="flex gap-3 flex-wrap">
+                    <span className="text-gray-600">Source file:</span>
+                    <span className="font-semibold text-gray-900">{lastEtlRun.inputS3Path?.split('/').pop() || '—'}</span>
+                  </div>
+                  <div className="flex gap-3 flex-wrap">
+                    <span className="text-gray-600">Run ID:</span>
+                    <code className="text-xs text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">{lastEtlRun.runId}</code>
+                  </div>
+                  <div className="flex gap-3 flex-wrap">
+                    <span className="text-gray-600">Completed:</span>
+                    <span className="text-gray-700">{lastEtlRun.completedAt ? new Date(lastEtlRun.completedAt).toLocaleString() : '—'}</span>
+                  </div>
+                  <div className="flex gap-3 flex-wrap">
+                    <span className="text-gray-600">Output:</span>
+                    <span className="text-xs text-gray-500 font-mono truncate">{lastEtlRun.outputS3Path}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={handleQualityOnlyRun}
+            disabled={!lastEtlRun || ingestRunning || ingestPipelineReady === false || ingestPipelineReady === null}
+            className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition flex items-center justify-center gap-2 text-base">
+            {ingestRunning ? <><RotateCw className="w-5 h-5 animate-spin" /> Quality Check Running…</> : <><span>🔬</span> Run Quality &amp; Profile Agent</>}
+          </button>
+        </>)}
+      </div>
+
+      {ingestSteps.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-semibold text-gray-900">Pipeline Progress</h3>
+            {ingestRun?.reusedEtlRunId && (
+              <span className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full font-medium">
+                🔬 Quality-only · reusing ETL run <code>{ingestRun.reusedEtlRunId}</code>
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {ingestSteps.map((step) => {
+              const c = ingestStepColor(step.status);
+              return (
+                <div key={step.id} className={`border-2 ${c.ring} rounded-xl p-4 text-center`}>
+                  <div className={`text-3xl mb-2 ${step.status === 'running' ? 'animate-pulse' : 'opacity-75'}`}>{step.icon}</div>
+                  <p className={`text-xs font-semibold ${step.status === 'skipped' ? 'text-gray-400' : 'text-gray-700'}`}>{step.name}</p>
+                  <span className={`mt-2 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${c.label}`}>
+                    {step.status === 'done' ? '✓ done' : step.status === 'running' ? '⏳ running' : step.status === 'warning' ? '⚠ bypassed' : step.status === 'error' ? '✗ error' : step.status === 'skipped' ? '— skipped' : '○ waiting'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {ingestRun && (
+            <div className="mt-4 text-xs text-gray-400 font-mono bg-gray-50 rounded px-3 py-2">
+              Run ID: {ingestRun.runId} · {ingestRun.executionArn?.split(':').pop()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {ingestError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg overflow-hidden">
+          <div className="p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-red-900 text-sm">Pipeline Error</p>
+              <p className="text-sm text-red-700 mt-1">{ingestError}</p>
+              <button
+                onClick={() => { setIngestLogsOpen(o => !o); if (!ingestLogsOpen) fetchIngestLogs(); }}
+                className="mt-3 flex items-center gap-1.5 text-xs font-medium text-red-700 hover:text-red-900 transition"
+              >
+                <ChevronDown className={`w-4 h-4 transition-transform ${ingestLogsOpen ? 'rotate-180' : ''}`} />
+                {ingestLogsOpen ? 'Hide' : 'View'} CloudWatch Logs
+              </button>
+            </div>
+          </div>
+          {ingestLogsOpen && (
+            <div className="border-t border-red-200 bg-gray-900 rounded-b-lg p-4 max-h-72 overflow-y-auto font-mono text-xs">
+              {ingestLogsLoading ? (
+                <p className="text-gray-400 animate-pulse">Fetching logs from CloudWatch…</p>
+              ) : ingestLogs.length === 0 ? (
+                <p className="text-gray-400">No log events found for this run. Logs may take up to 60 s to appear in CloudWatch.</p>
+              ) : (
+                ingestLogs.map((e, i) => (
+                  <div key={i} className="mb-1">
+                    <span className="text-gray-500 mr-2">{new Date(e.timestamp).toISOString().slice(11, 23)}</span>
+                    <span className={`${e.message.toLowerCase().includes('error') || e.message.toLowerCase().includes('exception') ? 'text-red-400' : 'text-green-300'}`}>
+                      {e.message}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {ingestQuality && !ingestQuality.bypassed && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900">Data Quality Report</h3>
+            <div className="flex items-center gap-3">
+              <div className={`text-2xl font-bold ${ingestQuality.quality_score >= 80 ? 'text-green-600' : ingestQuality.quality_score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                {ingestQuality.quality_score}%
+              </div>
+              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${ingestQuality.passed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {ingestQuality.passed ? '✓ PASSED' : '✗ FAILED'}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Rows',    value: (ingestQuality.total_rows ?? 0).toLocaleString(), icon: '📊' },
+              { label: 'Total Columns', value: String(ingestQuality.total_columns ?? 0),          icon: '📋' },
+              { label: 'Parquet Files', value: String(ingestQuality.parquet_files ?? 1),           icon: '📦' },
+              { label: 'Issues Found',  value: String((ingestQuality.issues||[]).length),          icon: (ingestQuality.issues||[]).length > 0 ? '⚠️' : '✅' },
+            ].map(s => (
+              <div key={s.label} className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="text-2xl mb-1">{s.icon}</div>
+                <div className="text-xl font-bold text-gray-900">{s.value}</div>
+                <div className="text-xs text-gray-500">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {(ingestQuality.issues||[]).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quality Issues</p>
+              <div className="space-y-2">
+                {ingestQuality.issues.map((issue, i) => (
+                  <div key={i} className={`flex items-start gap-2 p-3 rounded-lg text-sm ${issue.severity === 'critical' ? 'bg-red-50 border border-red-200' : 'bg-yellow-50 border border-yellow-200'}`}>
+                    <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${issue.severity === 'critical' ? 'text-red-500' : 'text-yellow-500'}`} />
+                    <div><span className="font-semibold">{issue.column}</span><span className="text-gray-600 ml-2">{issue.message}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {ingestQuality.column_stats && Object.keys(ingestQuality.column_stats).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Column Statistics</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Column</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Type</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Nulls</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Null %</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Sample Values</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {Object.entries(ingestQuality.column_stats).map(([col, stats]) => (
+                      <tr key={col} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-mono text-xs font-semibold text-gray-900">{col}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500">{stats.dtype}</td>
+                        <td className="px-3 py-2 text-xs text-gray-700">{stats.null_count}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[60px]">
+                              <div className={`h-1.5 rounded-full ${stats.null_pct > 50 ? 'bg-red-500' : stats.null_pct > 10 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${Math.min(stats.null_pct,100)}%` }} />
+                            </div>
+                            <span className="text-xs text-gray-600">{stats.null_pct}%</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-500 font-mono truncate max-w-[200px]">{(stats.sample_values||[]).slice(0,3).join(', ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        {ingestSample && ingestSample.rows?.length > 0 && (
+          <div className="mt-5">
+            <h4 className="font-semibold text-gray-800 text-sm mb-2">Data Preview <span className="text-gray-400 font-normal">— first {ingestSample.rows.length} rows of transformed output</span></h4>
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    {ingestSample.columns.map(col => (
+                      <th key={col} className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap">{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ingestSample.rows.map((row, i) => (
+                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      {ingestSample.columns.map(col => (
+                        <td key={col} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-32 truncate" title={row[col] ?? ''}>
+                          {row[col] === null || row[col] === 'None' ? <span className="text-gray-300 italic">null</span> : row[col]}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        {/* ── Metadata review & registration ── */}
+        {!ingestMetaRegistered && (
+          <div className="mt-5 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-gray-800 text-sm">Column Metadata Review</h4>
+                <p className="text-xs text-gray-500 mt-0.5">AI-generated descriptions auto-load after quality profiling — edit then register to the catalog</p>
+              </div>
+              <div className="flex gap-2">
+                {!ingestMeta && ingestMetaLoading && (
+                  <span className="px-3 py-1.5 text-xs text-gray-500 flex items-center gap-1.5">
+                    <RotateCw className="w-3.5 h-3.5 animate-spin" />Loading metadata…
+                  </span>
+                )}
+                {!ingestMeta && !ingestMetaLoading && ingestRun?.runId && (
+                  <button onClick={() => fetchMetadata(ingestRun.runId)}
+                    className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition flex items-center gap-1.5">
+                    <RotateCw className="w-3.5 h-3.5" />Reload Metadata
+                  </button>
+                )}
+                {ingestMeta && (
+                  <button onClick={handleEnrichMeta}
+                    disabled={ingestMetaEnriching || ingestMetaLoading}
+                    className="px-3 py-1.5 bg-white border border-teal-300 rounded-lg text-xs font-medium text-teal-700 hover:bg-teal-50 transition disabled:opacity-50 flex items-center gap-1.5">
+                    {ingestMetaEnriching ? <><RotateCw className="w-3.5 h-3.5 animate-spin" />Enriching…</> : <><Brain className="w-3.5 h-3.5" />Re-run AI Descriptions</>}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {ingestMetaLoading && !ingestMeta && (
+              <div className="p-6 text-center text-sm text-gray-500 animate-pulse">Loading column metadata…</div>
+            )}
+            {!ingestMeta && !ingestMetaLoading && !ingestRun && (
+              <div className="p-6 text-center text-sm text-gray-400">Run the pipeline to auto-generate column metadata.</div>
+            )}
+            {!ingestMeta && !ingestMetaLoading && ingestRun && ingestRunning && (
+              <div className="p-6 text-center text-sm text-gray-400 animate-pulse">Metadata will appear automatically once the pipeline completes…</div>
+            )}
+
+            {ingestQuality?.bypassed && (
+              <div className="px-4 py-2.5 bg-yellow-50 border-b border-yellow-200 flex items-center gap-2 text-xs text-yellow-800">
+                <span className="text-base">⚠️</span>
+                <span><strong>Quality check was bypassed</strong> — {ingestQuality.warning || 'Pipeline continued to metadata generation.'} Descriptions are AI-generated from column names and data types.</span>
+              </div>
+            )}
+            {ingestMeta && (
+              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                {(ingestMeta.columns || []).map(col => (
+                  <div key={col.name} className="px-4 py-3 hover:bg-gray-50 transition">
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-800 text-sm">{col.name}</span>
+                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-mono">{col.data_type}</span>
+                          {col.semantic_type && col.semantic_type !== 'other' && (
+                            <span className="text-xs bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded">{col.semantic_type}</span>
+                          )}
+                          {ingestMetaEdits[col.name]?.pii_flag && (
+                            <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-medium">PII</span>
+                          )}
+                          <span className="text-xs text-gray-400 ml-auto">{col.null_pct ?? 0}% null</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={ingestMetaEdits[col.name]?.description ?? ''}
+                          onChange={e => setIngestMetaEdits(prev => ({ ...prev, [col.name]: { ...prev[col.name], description: e.target.value } }))}
+                          placeholder="Add a description for this column…"
+                          className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-teal-400 bg-white"
+                        />
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <input
+                            type="text"
+                            value={ingestMetaEdits[col.name]?.tags ?? ''}
+                            onChange={e => setIngestMetaEdits(prev => ({ ...prev, [col.name]: { ...prev[col.name], tags: e.target.value } }))}
+                            placeholder="Tags (comma-separated)"
+                            className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-teal-400 bg-white"
+                          />
+                          <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer select-none">
+                            <input type="checkbox"
+                              checked={ingestMetaEdits[col.name]?.pii_flag ?? false}
+                              onChange={e => setIngestMetaEdits(prev => ({ ...prev, [col.name]: { ...prev[col.name], pii_flag: e.target.checked } }))}
+                              className="rounded" />
+                            PII
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {ingestMeta && (
+              <div className="bg-gray-50 border-t border-gray-200 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-xs text-gray-500">{(ingestMeta.columns || []).length} columns · review descriptions and PII flags before registering</p>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setActiveNav('analyst')}
+                    className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-xs font-medium text-indigo-700 hover:bg-indigo-50 transition flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5" />Discuss in Chat
+                  </button>
+                  <button onClick={handleRegisterMetadata}
+                    disabled={ingestMetaRegistering || !ingestMeta}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition disabled:opacity-50 flex items-center gap-2">
+                    {ingestMetaRegistering
+                      ? <><RotateCw className="w-4 h-4 animate-spin" />Registering…</>
+                      : <><Database className="w-4 h-4" />Register to Catalog</>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {ingestMetaRegistered && (
+          <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-green-900 text-sm">Registered to Catalog</p>
+              <p className="text-xs text-green-700 mt-1">
+                Catalog ID: <code className="bg-green-100 px-1 rounded">{ingestMetaRegistered.catalog_id}</code>
+                {' · '}Registered at {new Date(ingestMetaRegistered.registered_at).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={() => { setIngestRun(null); setIngestSteps([]); setIngestQuality(null); setIngestError(null); setIngestFile(null); setIngestSample(null); setIngestLogs([]); setIngestLogsOpen(false); setIngestMeta(null); setIngestMetaEdits({}); setIngestMetaRegistered(null); }}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
+            Run Another File
+          </button>
+        </div>
         </div>
       )}
     </div>
   );
+
+  // ── Pipeline helpers ─────────────────────────────────────────────────────────
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+
+  const fetchPipelines = async () => {
+    setPipelinesLoading(true);
+    setPipelinesError(null);
+    try {
+      const r = await fetch(`${BACKEND}/api/pipelines`);
+      if (!r.ok) {
+        const e = await r.json();
+        setPipelinesError(e.hint || e.error || 'Failed to load pipelines');
+        setAwsPipelines(null);
+      } else {
+        const data = await r.json();
+        setAwsPipelines(data);
+        // auto-select first pipeline
+        const all = [...(data.gluePipelines || []), ...(data.sfPipelines || [])];
+        if (all.length && !selectedPipeline) setSelectedPipeline(all[0].id);
+      }
+    } catch (e) {
+      setPipelinesError(`Cannot reach backend at ${BACKEND}. Is it running?`);
+    } finally {
+      setPipelinesLoading(false);
+    }
+  };
+
+  const fetchDag = async (pipeline) => {
+    setDagLoading(true);
+    setSelectedDag(null);
+    try {
+      const r = await fetch(`${BACKEND}/api/pipelines/${pipeline.type}/${encodeURIComponent(pipeline.id)}/dag`);
+      if (r.ok) setSelectedDag(await r.json());
+    } catch { /* ignore */ } finally {
+      setDagLoading(false);
+    }
+  };
+
+  const triggerRun = async (pipeline) => {
+    setRunningPipeline(pipeline.id);
+    try {
+      if (pipeline.type === 'glue') {
+        await fetch(`${BACKEND}/api/pipelines/glue/${encodeURIComponent(pipeline.name)}/run`, { method: 'POST' });
+      } else if (pipeline.type === 'stepfunction') {
+        await fetch(`${BACKEND}/api/pipelines/sf/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stateMachineArn: pipeline.arn }),
+        });
+      }
+      setTimeout(fetchPipelines, 2000);
+    } catch { /* ignore */ } finally {
+      setTimeout(() => setRunningPipeline(null), 2000);
+    }
+  };
+
+  const triggerHealing = async () => {
+    setIsHealing(true);
+    setHealingDone(false);
+    setHealingLog([{ ts: new Date().toISOString(), msg: '🔗 Connecting to Self-Healing Agent...' }]);
+    try {
+      const r = await fetch(`${BACKEND}/api/pipelines/heal`, { method: 'POST' });
+      const data = await r.json();
+      if (data.logs) {
+        setHealingLog(data.logs);
+      } else {
+        setHealingLog([{ ts: new Date().toISOString(), msg: `❌ ${data.error || 'Unknown error'}` }]);
+      }
+      setHealingDone(true);
+      setTimeout(fetchPipelines, 1500);
+    } catch (e) {
+      setHealingLog(prev => [...prev, { ts: new Date().toISOString(), msg: `❌ Network error: ${e.message}` }]);
+      setHealingDone(true);
+    } finally {
+      setIsHealing(false);
+    }
+  };
+
+  // ── Status colour helpers ─────────────────────────────────────────────────
+  const statusBadge = (status = '') => {
+    const s = status.toUpperCase();
+    if (['RUNNING', 'ACTIVE', 'ENABLED'].includes(s)) return 'bg-blue-100 text-blue-800';
+    if (['SUCCEEDED', 'COMPLETED', 'SUCCESS'].includes(s)) return 'bg-green-100 text-green-800';
+    if (['FAILED', 'ERROR'].includes(s)) return 'bg-red-100 text-red-800';
+    if (['STOPPED', 'DISABLED'].includes(s)) return 'bg-gray-100 text-gray-600';
+    return 'bg-yellow-100 text-yellow-800';
+  };
+
+  const dagNodeColors = (type = 'Task', idx = 0) => {
+    const palette = [
+      { bg: 'bg-green-100', border: 'border-green-500', text: 'text-green-900' },
+      { bg: 'bg-blue-100',  border: 'border-blue-500',  text: 'text-blue-900' },
+      { bg: 'bg-purple-100',border: 'border-purple-500',text: 'text-purple-900' },
+      { bg: 'bg-teal-100',  border: 'border-teal-500',  text: 'text-teal-900' },
+      { bg: 'bg-orange-100',border: 'border-orange-500',text: 'text-orange-900' },
+      { bg: 'bg-pink-100',  border: 'border-pink-500',  text: 'text-pink-900' },
+    ];
+    if (type === 'Choice')  return { bg: 'bg-yellow-100', border: 'border-yellow-500', text: 'text-yellow-900' };
+    if (type === 'Succeed') return { bg: 'bg-green-200',  border: 'border-green-600',  text: 'text-green-900' };
+    if (type === 'Fail')    return { bg: 'bg-red-100',    border: 'border-red-500',    text: 'text-red-900' };
+    return palette[idx % palette.length];
+  };
+
+  const allPipelines = awsPipelines
+    ? [...(awsPipelines.gluePipelines || []), ...(awsPipelines.sfPipelines || []), ...(awsPipelines.ebPipelines || [])]
+    : [];
+  const activePipeline = allPipelines.find(p => p.id === selectedPipeline);
+
+  // ── Pipelines View ────────────────────────────────────────────────────────
+  const PipelinesView = () => {
+    // No hooks here — all effects/refs are hoisted to the parent component
+    // to prevent React from unmounting/remounting on every parent re-render.
+    const typeIcon = (type) => {
+      if (type === 'glue')         return '⚙️';
+      if (type === 'stepfunction') return '🔀';
+      if (type === 'eventbridge')  return '⏱️';
+      return '📋';
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Pipelines</h2>
+            <p className="text-gray-600 mt-1">Live AWS Glue · Step Functions · EventBridge — with Agentic Self-Healing</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={fetchPipelines}
+              disabled={pipelinesLoading}
+              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${pipelinesLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              onClick={triggerHealing}
+              disabled={isHealing || !awsPipelines}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+            >
+              {isHealing
+                ? <><RotateCw className="w-4 h-4 animate-spin" /> Healing…</>
+                : <><Zap className="w-4 h-4" /> Trigger Self-Healing Agent</>}
+            </button>
+          </div>
+        </div>
+
+        {/* AWS Not Configured */}
+        {pipelinesError && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-amber-900">AWS Not Connected</p>
+                <p className="text-sm text-amber-800 mt-1">{pipelinesError}</p>
+                <div className="mt-3 bg-amber-100 rounded p-3 font-mono text-xs text-amber-900 space-y-1">
+                  <p># Add to backend/.env:</p>
+                  <p>AWS_ACCESS_KEY_ID=AKIA…</p>
+                  <p>AWS_SECRET_ACCESS_KEY=…</p>
+                  <p>AWS_REGION=us-east-1</p>
+                </div>
+                <button
+                  onClick={fetchPipelines}
+                  className="mt-3 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
+                >
+                  Retry Connection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {pipelinesLoading && (
+          <div className="space-y-3">
+            {[1,2,3].map(i => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-6 animate-pulse">
+                <div className="flex justify-between items-center">
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-48" />
+                    <div className="h-3 bg-gray-100 rounded w-32" />
+                  </div>
+                  <div className="h-6 bg-gray-200 rounded-full w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pipeline list */}
+        {!pipelinesLoading && awsPipelines && (
+          <>
+            {/* Stats row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard icon={GitBranch} label="Glue Jobs"        value={String(awsPipelines.gluePipelines?.length ?? 0)}  change="discovered" color="teal" />
+              <StatCard icon={Workflow}  label="State Machines"   value={String(awsPipelines.sfPipelines?.length ?? 0)}    change="discovered" color="teal" />
+              <StatCard icon={Clock}     label="EB Schedules"     value={String(awsPipelines.ebPipelines?.length ?? 0)}    change="active rules" color="teal" />
+              <StatCard icon={CheckCircle} label="Healed (session)" value={String(healingLog.filter(l => l.msg.includes('✅ Restart')).length)} change="auto-fixed" color="teal" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left: pipeline list */}
+              <div className="lg:col-span-1 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-200 bg-gray-50">
+                  <h3 className="font-semibold text-gray-900 text-sm">AWS Pipelines</h3>
+                </div>
+                <div className="divide-y divide-gray-100 max-h-[520px] overflow-y-auto">
+                  {allPipelines.length === 0 && (
+                    <p className="p-6 text-sm text-gray-500 text-center">No pipelines found in this region</p>
+                  )}
+                  {allPipelines.map(pipeline => (
+                    <div
+                      key={pipeline.id}
+                      onClick={() => setSelectedPipeline(pipeline.id)}
+                      className={`p-4 cursor-pointer hover:bg-gray-50 transition ${selectedPipeline === pipeline.id ? 'bg-teal-50 border-l-4 border-teal-600' : 'border-l-4 border-transparent'}`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-base flex-shrink-0">{typeIcon(pipeline.type)}</span>
+                          <p className="font-medium text-gray-900 text-sm truncate">{pipeline.name}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${statusBadge(pipeline.status)}`}>
+                          {pipeline.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 ml-6">
+                        {pipeline.type === 'glue' ? 'AWS Glue' : pipeline.type === 'stepfunction' ? 'Step Functions' : 'EventBridge'}
+                        {pipeline.lastRun ? ` · ${new Date(pipeline.lastRun).toLocaleDateString()}` : ''}
+                      </p>
+                      {pipeline.duration && (
+                        <p className="text-xs text-gray-400 ml-6">{pipeline.duration}</p>
+                      )}
+                      {/* Run button */}
+                      {(pipeline.type === 'glue' || pipeline.type === 'stepfunction') && (
+                        <button
+                          onClick={e => { e.stopPropagation(); triggerRun(pipeline); }}
+                          disabled={runningPipeline === pipeline.id}
+                          className="mt-2 ml-6 text-xs px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 transition disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {runningPipeline === pipeline.id
+                            ? <><RotateCw className="w-3 h-3 animate-spin" /> Starting…</>
+                            : <><Play className="w-3 h-3" /> Run Now</>}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: DAG + runs */}
+              <div className="lg:col-span-2 space-y-4">
+                {/* DAG visualization */}
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
+                  {!activePipeline && (
+                    <p className="text-gray-400 text-sm text-center py-8">Select a pipeline on the left to view its workflow</p>
+                  )}
+                  {activePipeline && (
+                    <>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-gray-900">{activePipeline.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadge(activePipeline.status)}`}>
+                            {activePipeline.status}
+                          </span>
+                          {activePipeline.type === 'glue' && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">AWS Glue</span>}
+                          {activePipeline.type === 'stepfunction' && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Step Functions</span>}
+                        </div>
+                      </div>
+
+                      {dagLoading && (
+                        <div className="flex items-center justify-center py-10 text-gray-400">
+                          <RotateCw className="w-5 h-5 animate-spin mr-2" /> Loading workflow…
+                        </div>
+                      )}
+
+                      {!dagLoading && selectedDag && selectedDag.nodes.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <div className="flex items-center gap-0 min-w-max pb-2">
+                            {selectedDag.nodes.map((node, idx) => {
+                              const c = dagNodeColors(node.type, idx);
+                              return (
+                                <React.Fragment key={node.name}>
+                                  <div className="text-center flex-shrink-0">
+                                    <div className={`${c.bg} border-2 ${c.border} rounded-lg px-4 py-3 inline-block min-w-[100px]`}>
+                                      <div className={`text-xs font-bold ${c.text} uppercase tracking-wide`}>{node.type}</div>
+                                      <div className={`text-sm font-medium ${c.text} mt-1`}>{node.name}</div>
+                                      {node.isEnd && <div className="text-xs text-gray-400 mt-1">END</div>}
+                                    </div>
+                                  </div>
+                                  {!node.isEnd && idx < selectedDag.nodes.length - 1 && (
+                                    <ChevronRight className="w-6 h-6 text-gray-400 flex-shrink-0 mx-1" />
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {!dagLoading && (!selectedDag || selectedDag.nodes.length === 0) && activePipeline.type !== 'eventbridge' && (
+                        <div className="text-sm text-gray-400 text-center py-6">No workflow definition available</div>
+                      )}
+
+                      {activePipeline.type === 'eventbridge' && (
+                        <div className="bg-gray-50 rounded p-4 text-sm text-gray-600">
+                          <p><span className="font-medium">Schedule:</span> {activePipeline.schedule}</p>
+                          <p><span className="font-medium">State:</span> {activePipeline.status}</p>
+                        </div>
+                      )}
+
+                      {/* Recent executions */}
+                      {!dagLoading && selectedDag?.recentExecutions?.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Recent Executions</p>
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                            {selectedDag.recentExecutions.slice(0, 8).map((ex, i) => (
+                              <div key={i} className="flex items-center justify-between text-xs bg-gray-50 rounded px-3 py-2">
+                                <span className="font-mono text-gray-700 truncate max-w-[200px]">{ex.name}</span>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  {ex.startDate && <span className="text-gray-400">{new Date(ex.startDate).toLocaleString()}</span>}
+                                  <span className={`px-2 py-0.5 rounded-full font-medium ${statusBadge(ex.status)}`}>{ex.status}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Self-Healing Console */}
+                {healingLog.length > 0 && (
+                  <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${isHealing ? 'bg-green-400 animate-pulse' : healingDone ? 'bg-green-400' : 'bg-gray-500'}`} />
+                        <span className="text-xs font-mono text-gray-300">self-healing-agent · CloudWatch /agenticdt/healing</span>
+                      </div>
+                      <button onClick={() => { setHealingLog([]); setHealingDone(false); }} className="text-gray-500 hover:text-gray-300 text-xs">✕ clear</button>
+                    </div>
+                    <div
+                      ref={healLogRef}
+                      className="p-4 font-mono text-xs text-green-300 space-y-1 max-h-72 overflow-y-auto"
+                    >
+                      {healingLog.map((entry, i) => (
+                        <div key={i} className="flex gap-3">
+                          <span className="text-gray-500 flex-shrink-0">
+                            {new Date(entry.ts).toLocaleTimeString()}
+                          </span>
+                          <span className={
+                            entry.msg.includes('❌') ? 'text-red-400' :
+                            entry.msg.includes('⚠️') || entry.msg.includes('🚨') ? 'text-yellow-400' :
+                            entry.msg.includes('✅') ? 'text-green-400' :
+                            entry.msg.includes('🔄') ? 'text-blue-400' :
+                            entry.msg.includes('🤖') || entry.msg.includes('📡') ? 'text-teal-400' :
+                            'text-gray-300'
+                          }>{entry.msg}</span>
+                        </div>
+                      ))}
+                      {isHealing && (
+                        <div className="flex gap-3">
+                          <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
+                          <span className="text-teal-400 animate-pulse">▌</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   // Storage & Warehouse View
   const StorageView = () => (
@@ -681,97 +1655,281 @@ export default function AgenticDataPlatform() {
   );
 
   // Semantic Engine View
-  const SemanticView = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Semantic Engine</h2>
-        <p className="text-gray-600 mb-6">Knowledge Graph, Metadata Catalog, Lineage, and Data Marketplace</p>
-      </div>
+  const SemanticView = () => {
+    const [searchQuery, setSearchQuery]     = useState('');
+    const [showResults, setShowResults]     = useState(false);
+    const [selectedEntity, setSelectedEntity] = useState(null);
+    const [entityFilter, setEntityFilter]   = useState('');
 
-      {/* Semantic Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={Database}
-          label="Cataloged Assets"
-          value="8.2K"
-          change="+320"
-          color="teal"
-        />
-        <StatCard
-          icon={Network}
-          label="Knowledge Entities"
-          value="1.2M"
-          change="+450K"
-          color="teal"
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Data Glossary Terms"
-          value="3,450"
-          change="+125"
-          color="teal"
-        />
-        <StatCard
-          icon={Eye}
-          label="Marketplace Datasets"
-          value="547"
-          change="+28"
-          color="teal"
-        />
-      </div>
+    const GW = 600, GH = 310;
 
-      {/* Data Assets */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Data Assets & Lineage</h3>
+    const graphEntities = [
+      { id: 'customer', name: 'Customer',   type: 'Entity',  domain: 'CRM',       owner: 'data-platform', updated: '2m ago',  color: '#0E7490', attrs: ['customer_id','name','email','segment_id','ltv','churn_score'], sources: ['Snowflake DW','CRM API'],    attrCount: 12, relCount: 5 },
+      { id: 'order',    name: 'Order',      type: 'Entity',  domain: 'Commerce',  owner: 'commerce-team', updated: '5m ago',  color: '#7C3AED', attrs: ['order_id','customer_id','total','status','created_at'],       sources: ['PostgreSQL'],                attrCount:  8, relCount: 3 },
+      { id: 'product',  name: 'Product',    type: 'Entity',  domain: 'Catalog',   owner: 'product-team',  updated: '1h ago',  color: '#059669', attrs: ['product_id','name','category_id','price','sku'],              sources: ['PostgreSQL','S3'],            attrCount: 15, relCount: 4 },
+      { id: 'payment',  name: 'Payment',    type: 'Entity',  domain: 'Finance',   owner: 'finance-team',  updated: '15m ago', color: '#D97706', attrs: ['payment_id','order_id','amount','method','status'],           sources: ['Payment Gateway'],            attrCount:  7, relCount: 2 },
+      { id: 'revenue',  name: 'Revenue',    type: 'Metric',  domain: 'Finance',   owner: 'analytics',     updated: '1d ago',  color: '#DC2626', attrs: ['revenue_id','source','amount','period','channel'],            sources: ['DW Aggregation'],             attrCount:  5, relCount: 2 },
+      { id: 'event',    name: 'Event',      type: 'Entity',  domain: 'Behavioral',owner: 'platform-team', updated: 'Live',    color: '#0D5FAA', attrs: ['event_id','customer_id','type','timestamp','properties'],     sources: ['Kafka/MSK'],                 attrCount:  9, relCount: 2 },
+      { id: 'segment',  name: 'Segment',    type: 'Concept', domain: 'Marketing', owner: 'growth-team',   updated: '6h ago',  color: '#0E7490', attrs: ['segment_id','name','criteria','size','last_computed'],       sources: ['ML Pipeline'],                attrCount:  5, relCount: 3 },
+      { id: 'crm',      name: 'CRM',        type: 'Source',  domain: 'CRM',       owner: 'sales-team',    updated: '30m ago', color: '#7C3AED', attrs: ['crm_id','sf_account_id','stage','arr','csm'],                sources: ['Salesforce API'],             attrCount:  6, relCount: 1 },
+    ];
+
+    const nodeLayout = [
+      { id: 'customer', x: 0.38, y: 0.44 }, { id: 'order',   x: 0.60, y: 0.20 },
+      { id: 'product',  x: 0.60, y: 0.68 }, { id: 'payment', x: 0.82, y: 0.20 },
+      { id: 'revenue',  x: 0.82, y: 0.68 }, { id: 'event',   x: 0.16, y: 0.20 },
+      { id: 'segment',  x: 0.16, y: 0.68 }, { id: 'crm',     x: 0.38, y: 0.84 },
+    ];
+    const edges = [['customer','order'],['customer','product'],['customer','event'],['customer','segment'],['customer','crm'],['order','payment'],['product','revenue'],['payment','revenue']];
+    const getPos = id => { const l = nodeLayout.find(n => n.id === id); return l ? { x: l.x * GW, y: l.y * GH } : { x: 0, y: 0 }; };
+
+    const searchResults = [
+      { name: 'customer.ltv', type: 'Metric' },
+      { name: 'revenue_attribution.channel_revenue', type: 'Dataset' },
+      { name: 'orders_fact.total_revenue', type: 'Metric' },
+    ].filter(r => !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const dataAssets = [
+      { name: 'customer_master', owner: 'Data Eng',  quality: 98, governance: 'Strict',   lineage: 'Full'    },
+      { name: 'orders_fact',     owner: 'Commerce',  quality: 94, governance: 'Standard', lineage: 'Full'    },
+      { name: 'product_catalog', owner: 'Catalog',   quality: 91, governance: 'Standard', lineage: 'Partial' },
+      { name: 'revenue_daily',   owner: 'Finance',   quality: 99, governance: 'Strict',   lineage: 'Full'    },
+      { name: 'events_stream',   owner: 'Analytics', quality: 87, governance: 'Basic',    lineage: 'Partial' },
+    ];
+
+    const coverageData = [
+      { category: 'Tables', coverage: 95 }, { category: 'Columns', coverage: 92 },
+      { category: 'Relationships', coverage: 87 }, { category: 'Business Terms', coverage: 78 },
+      { category: 'Data Quality', coverage: 84 },
+    ];
+
+    const filteredEntities = graphEntities.filter(e =>
+      !entityFilter || e.name.toLowerCase().includes(entityFilter.toLowerCase()) || e.domain.toLowerCase().includes(entityFilter.toLowerCase())
+    );
+
+    const statCards = [
+      { label: 'Cataloged Assets',   value: '8.2K',  change: '+320', icon: Database,  bg: 'bg-teal-50',   fg: 'text-teal-600'   },
+      { label: 'Knowledge Entities', value: '1,842', change: '+121', icon: Network,   bg: 'bg-purple-50', fg: 'text-purple-600' },
+      { label: 'Relations',          value: '8,431', change: '+342', icon: GitBranch, bg: 'bg-blue-50',   fg: 'text-blue-600'   },
+      { label: 'Glossary Terms',     value: '3,450', change: '+125', icon: Eye,       bg: 'bg-orange-50', fg: 'text-orange-500' },
+      { label: 'Marketplace',        value: '547',   change: '+28',  icon: Cloud,     bg: 'bg-green-50',  fg: 'text-green-600'  },
+      { label: 'Discovery Time',     value: '<2s',   change: '–18%', icon: Zap,       bg: 'bg-teal-50',   fg: 'text-teal-600'   },
+    ];
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Semantic Engine</h2>
+          <p className="text-gray-500 mt-1">Unified metadata registry · Knowledge graph · Semantic search · Data marketplace</p>
         </div>
-        <div className="divide-y divide-gray-200">
-          {dataAssets.map((asset) => (
-            <div key={asset.name} className="p-6 hover:bg-gray-50 transition">
-              <h4 className="font-semibold text-gray-900 mb-2">{asset.name}</h4>
-              <div className="grid grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Owner: </span>
-                  <span className="font-medium text-gray-900">{asset.owner}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Quality: </span>
-                  <span className="font-medium text-green-600">{asset.quality}%</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Governance: </span>
-                  <span className="font-medium text-gray-900">{asset.governance}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Lineage: </span>
-                  <span className="font-medium text-teal-600">{asset.lineage}</span>
-                </div>
+
+        {/* 6 Stat Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {statCards.map(({ label, value, change, icon: Icon, bg, fg }) => (
+            <div key={label} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center mb-2 ${bg}`}>
+                <Icon className={`w-4 h-4 ${fg}`} />
               </div>
+              <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+              <p className="text-lg font-bold text-gray-900">{value}</p>
+              <p className="text-xs text-gray-400">{change}</p>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Metadata Distribution */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-6">Metadata Catalog Coverage</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={[
-            { category: 'Tables', coverage: 95 },
-            { category: 'Columns', coverage: 92 },
-            { category: 'Relationships', coverage: 87 },
-            { category: 'Business Terms', coverage: 78 },
-            { category: 'Data Quality', coverage: 84 }
-          ]}>
-            <XAxis dataKey="category" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="coverage" fill="#0891B2" />
-          </BarChart>
-        </ResponsiveContainer>
+        {/* Semantic Search */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 relative z-10">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Semantic Search</h3>
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Semantic search — e.g. 'customer lifetime value'"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setShowResults(e.target.value.length > 0); }}
+              onFocus={() => searchQuery && setShowResults(true)}
+              onBlur={() => setTimeout(() => setShowResults(false), 150)}
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-400 focus:border-transparent outline-none"
+            />
+            {showResults && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-20">
+                {searchResults.length > 0 ? searchResults.map((r, i) => (
+                  <button key={i} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-50 text-left border-b border-gray-100 last:border-0 first:rounded-t-xl last:rounded-b-xl transition">
+                    <Network className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-800 font-mono">{r.name}</p>
+                      <p className="text-xs text-gray-400">{r.type}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </button>
+                )) : <p className="px-4 py-3 text-sm text-gray-400">No results for "{searchQuery}"</p>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Knowledge Graph + Entity Detail */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Knowledge Graph</h3>
+              <span className="text-xs text-gray-400">Click a node to explore</span>
+            </div>
+            <svg viewBox={`0 0 ${GW} ${GH}`} className="w-full" style={{ height: 260 }}>
+              {edges.map(([from, to], i) => {
+                const f = getPos(from); const t = getPos(to);
+                return <line key={i} x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="#CBD5E1" strokeWidth="1.5" />;
+              })}
+              {graphEntities.map(entity => {
+                const pos = getPos(entity.id);
+                const isSel = selectedEntity?.id === entity.id;
+                const r = entity.id === 'customer' ? 27 : 20;
+                return (
+                  <g key={entity.id} onClick={() => setSelectedEntity(isSel ? null : entity)} style={{ cursor: 'pointer' }}>
+                    <circle cx={pos.x} cy={pos.y} r={isSel ? r + 5 : r}
+                      fill={isSel ? entity.color : entity.color + '22'}
+                      stroke={entity.color} strokeWidth="2"
+                      style={{ transition: 'all 0.2s ease' }} />
+                    <text x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="middle"
+                      fill={isSel ? '#fff' : entity.color}
+                      fontSize={entity.id === 'customer' ? '9.5' : '8.5'} fontWeight="700"
+                      style={{ pointerEvents: 'none', transition: 'fill 0.2s ease' }}>
+                      {entity.name.slice(0, 4)}
+                    </text>
+                    <text x={pos.x} y={pos.y + (isSel ? r + 5 : r) + 10} textAnchor="middle"
+                      fill="#94A3B8" fontSize="7.5" fontWeight="500" style={{ pointerEvents: 'none' }}>
+                      {entity.name}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Entity Detail Panel */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Entity Detail</h3>
+            {selectedEntity ? (
+              <div className="space-y-4 text-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: selectedEntity.color + '20' }}>
+                    <Network className="w-5 h-5" style={{ color: selectedEntity.color }} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900">{selectedEntity.name}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">{selectedEntity.type}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[['Domain', selectedEntity.domain], ['Owner', selectedEntity.owner], ['Updated', selectedEntity.updated]].map(([l, v]) => (
+                    <div key={l}><p className="text-xs text-gray-400 mb-0.5">{l}</p><p className="text-xs font-semibold text-gray-700 truncate">{v}</p></div>
+                  ))}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Attributes</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedEntity.attrs.map(attr => (
+                      <span key={attr} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md font-mono">{attr}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Sources</p>
+                  <div className="space-y-1.5">
+                    {selectedEntity.sources.map(src => (
+                      <div key={src} className="flex items-center gap-2 px-2.5 py-1.5 bg-teal-50 text-teal-700 rounded-lg">
+                        <Database className="w-3 h-3 flex-shrink-0" /><span className="text-xs font-medium">{src}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-52 text-center">
+                <Network className="w-10 h-10 text-gray-200 mb-3" />
+                <p className="text-xs text-gray-400">Select a node in the graph<br />to explore entity details</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Entity Registry */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Entity Registry</h3>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-gray-400" />
+              <input type="text" placeholder="Filter entities…" value={entityFilter}
+                onChange={e => setEntityFilter(e.target.value)}
+                className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-300 focus:border-transparent outline-none" />
+            </div>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {filteredEntities.map(entity => (
+              <button key={entity.id}
+                onClick={() => setSelectedEntity(selectedEntity?.id === entity.id ? null : entity)}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition text-left ${selectedEntity?.id === entity.id ? 'bg-teal-50' : 'hover:bg-gray-50'}`}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  style={{ backgroundColor: entity.color }}>
+                  {entity.name[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">{entity.name}</p>
+                  <p className="text-xs text-gray-400">{entity.domain} · {entity.attrCount} attrs · {entity.relCount} relations</p>
+                </div>
+                <ChevronRight className={`w-4 h-4 flex-shrink-0 transition-transform ${selectedEntity?.id === entity.id ? 'rotate-90 text-teal-500' : 'text-gray-300'}`} />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Data Assets & Lineage */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Data Assets & Lineage</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  {['Asset', 'Owner', 'Quality', 'Governance', 'Lineage'].map(h => (
+                    <th key={h} className="text-left pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {dataAssets.map((a, i) => (
+                  <tr key={i} className="hover:bg-gray-50 transition">
+                    <td className="py-3 font-mono text-xs text-gray-700">{a.name}</td>
+                    <td className="py-3 text-xs text-gray-600">{a.owner}</td>
+                    <td className="py-3"><span className="text-sm font-semibold text-green-600">{a.quality}%</span></td>
+                    <td className="py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.governance === 'Strict' ? 'bg-red-50 text-red-600' : a.governance === 'Standard' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>{a.governance}</span>
+                    </td>
+                    <td className="py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.lineage === 'Full' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>{a.lineage}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Metadata Coverage Chart */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Metadata Catalog Coverage</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={coverageData} layout="vertical" margin={{ left: 100, right: 30, top: 4, bottom: 4 }}>
+              <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={95} />
+              <Tooltip formatter={v => [`${v}%`, 'Coverage']} />
+              <Bar dataKey="coverage" fill="#0E7490" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Data Quality View
   const DataQualityView = () => (
@@ -1120,11 +2278,22 @@ You can help with:
 IMPORTANT: When a user requests an action that requires system changes (create pipeline, register metadata, trigger healing, deploy model, fix quality), respond helpfully explaining what you will do, then end your message with an action block in this exact format on its own line:
 [ACTION:{"type":"CREATE_PIPELINE","title":"Short title","description":"What will happen","details":{"source":"value","target":"value","schedule":"value"}}]
 
-Valid types: CREATE_PIPELINE, REGISTER_METADATA, TRIGGER_HEALING, QUALITY_FIX, DEPLOY_MODEL
+Valid types: CREATE_PIPELINE, REGISTER_METADATA, TRIGGER_HEALING, QUALITY_FIX, DEPLOY_MODEL, INGEST_PIPELINE
+
+INGEST_PIPELINE — use ONLY when the user explicitly wants to upload a CSV/data file and run the ingestion pipeline. Format: [ACTION:{"type":"INGEST_PIPELINE","title":"Run Ingestion Pipeline","description":"Upload CSV to S3, parse with Glue, transform column, quality check with Lambda","details":{}}]
 
 Be concise and professional. Use specific technology names: Confluent/MSK, Flink, Spark, Airflow, Control-M, Snowflake, S3, Immuta, Arthur.ai, Infinite AI.`;
 
-    const QUICK_PROMPTS = [
+    // Show dataset-specific prompts when a pipeline run has completed
+    const QUICK_PROMPTS = ingestQuality ? [
+      "Summarise the data quality results for this dataset",
+      "Which columns have PII or sensitive data?",
+      "What quality issues were found — how do I fix them?",
+      "Register this dataset to the catalog",
+      "Show me the column metadata and descriptions",
+      "What does the schema look like?",
+    ] : [
+      "I have a CSV file I want to ingest — help me run the pipeline",
       "Create an automated pipeline ingesting from S3 to Snowflake",
       "Register metadata for a new customer analytics dataset",
       "Kick off self-healing on the 7 failed pipelines",
@@ -1133,9 +2302,10 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
       "What's the status of all active pipelines?",
     ];
 
-    const ACTION_ICONS = { CREATE_PIPELINE: GitBranch, REGISTER_METADATA: Database, TRIGGER_HEALING: RotateCw, QUALITY_FIX: CheckCircle, DEPLOY_MODEL: Zap };
+    const ACTION_ICONS = { CREATE_PIPELINE: GitBranch, REGISTER_METADATA: Database, TRIGGER_HEALING: RotateCw, QUALITY_FIX: CheckCircle, DEPLOY_MODEL: Zap, INGEST_PIPELINE: Upload };
 
     const ACTION_RESULTS = {
+      INGEST_PIPELINE: null, // handled specially — navigates to Ingestion tab
       CREATE_PIPELINE: (a) => `✅ Pipeline created and active!\n\n**${a.title}**\nStatus: Running · First execution in 5 min\nSchema Agent is scanning the source now and auto-registering metadata.`,
       REGISTER_METADATA: (a) => `✅ Metadata registered in semantic catalog!\n\n**${a.title}**\nDataset catalogued · Lineage graph updated · 4 tags auto-applied · Quality baseline set.`,
       TRIGGER_HEALING: (a) => `✅ Self-healing initiated on 7 failed pipelines!\n\n**${a.title}**\nHeal Agent analysed root causes · 5/7 patches applied · ETA full recovery: ~3 min.`,
@@ -1151,8 +2321,8 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
     const [isLoading, setIsLoading]           = useState(false);
     const [isListening, setIsListening]       = useState(false);
     const [interimText, setInterimText]       = useState('');
-    const [apiKey, setApiKey]                 = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
     const [showSettings, setShowSettings]     = useState(false);
+    const [apiKey, setApiKey]                 = useState('');  // UI-only note field; actual key lives in backend/.env
     const [pendingAction, setPendingAction]   = useState(null);
     const [executingAction, setExecutingAction] = useState(false);
     const [doneCount, setDoneCount]           = useState(0);
@@ -1163,22 +2333,75 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
 
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pendingAction, executingAction]);
 
+    // Auto-post pipeline completion summary to chat (fires for both normal and quality-bypassed runs)
+    useEffect(() => {
+      if (!ingestQuality || !ingestRun) return;
+      const runId = ingestRun.runId;
+      let summary;
+
+      if (ingestQuality.bypassed) {
+        // Quality check was skipped — still notify and prompt metadata review
+        summary =
+          `⚠️ **Ingestion pipeline complete** — Run \`${runId}\`\n\n` +
+          `**Quality check was bypassed** — the profiler encountered an issue but the pipeline continued.\n\n` +
+          `AI-generated column metadata is ready for review in the **Ingestion** tab.\n` +
+          `You can ask me anything about the dataset — e.g. _"Describe the columns"_, ` +
+          `_"Which columns might contain PII?"_, or _"Register this dataset to the catalog"_.`;
+      } else {
+        const score  = ingestQuality.quality_score ?? 0;
+        const passed = ingestQuality.passed;
+        const rows   = (ingestQuality.total_rows ?? 0).toLocaleString();
+        const cols   = ingestQuality.total_columns ?? 0;
+        const issues = (ingestQuality.issues || []).length;
+        const emoji  = score >= 80 ? '✅' : score >= 60 ? '⚠️' : '❌';
+        summary =
+          `${emoji} **Ingestion pipeline complete** — Run \`${runId}\`\n\n` +
+          `**Quality score: ${score}%** ${passed ? '(PASSED ✓)' : '(FAILED ✗)'} · ${rows} rows · ${cols} columns` +
+          (issues > 0 ? ` · **${issues} issue${issues > 1 ? 's' : ''} found**` : '') +
+          `\n\nAI-generated column metadata is ready for review in the **Ingestion** tab. ` +
+          `You can ask me anything about the dataset — e.g. _"Which columns have PII?"_, ` +
+          `_"Summarise the quality issues"_, or _"Register this dataset to the catalog"_.`;
+      }
+
+      setMessages(prev => {
+        if (prev.some(m => m.ingestRunId === runId)) return prev;
+        return [...prev, { id: Date.now(), role: 'assistant', content: summary, timestamp: new Date(), ingestRunId: runId }];
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ingestQuality]);
+
+    // Build a system prompt that includes live dataset context when available
+    const buildSystemPrompt = () => {
+      let prompt = PLATFORM_SYSTEM_PROMPT;
+      if (ingestQuality && ingestRun) {
+        const cols = (ingestMeta?.columns || []);
+        const piiCols   = cols.filter(c => c.pii_flag).map(c => c.name);
+        const nullyCols = cols.filter(c => c.null_pct > 10).map(c => `${c.name} (${c.null_pct}% null)`);
+        prompt += `\n\n--- ACTIVE DATASET (run: ${ingestRun.runId}) ---` +
+          `\nQuality score: ${ingestQuality.quality_score}% | Rows: ${(ingestQuality.total_rows||0).toLocaleString()} | Columns: ${ingestQuality.total_columns||0}` +
+          (piiCols.length   ? `\nPII columns: ${piiCols.join(', ')}` : '') +
+          (nullyCols.length ? `\nHigh-null columns: ${nullyCols.join(', ')}` : '') +
+          (cols.length      ? `\nColumn names: ${cols.map(c => c.name).join(', ')}` : '') +
+          (ingestMetaRegistered ? `\nCatalog status: REGISTERED (ID: ${ingestMetaRegistered.catalog_id})` : '\nCatalog status: Not yet registered') +
+          `\n--- END DATASET CONTEXT ---`;
+      }
+      return prompt;
+    };
+
     const callOpenAI = async (history) => {
-      const key = apiKey.trim();
-      if (!key) return "⚠️ No API key set. Click ⚙️ Settings above and paste your OpenAI key to get started.";
       try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const res = await fetch(`${backendUrl}/api/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [{ role: 'system', content: PLATFORM_SYSTEM_PROMPT }, ...history.map(m => ({ role: m.role, content: m.content }))],
-            temperature: 0.7, max_tokens: 900,
+            messages: history.map(m => ({ role: m.role, content: m.content })),
+            systemPrompt: buildSystemPrompt(),
           }),
         });
-        if (!res.ok) { const e = await res.json(); return `❌ OpenAI error: ${e.error?.message || res.statusText}`; }
+        if (!res.ok) { const e = await res.json(); return `❌ Error: ${e.error || res.statusText}`; }
         const d = await res.json();
-        return d.choices[0].message.content;
+        return d.reply;
       } catch (e) { return `❌ Network error: ${e.message}`; }
     };
 
@@ -1209,6 +2432,17 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
     const approveAction = async () => {
       const saved = pendingAction;
       setPendingAction(null);
+      if (saved.type === 'INGEST_PIPELINE') {
+        // Transfer any chat-attached file to the Ingestion tab and navigate
+        if (chatAttachFile) {
+          setIngestFile(chatAttachFile);
+          setChatAttachFile(null);
+        }
+        setMessages(prev => [...prev, { id: Date.now(), role: 'assistant', content: '✅ Navigating to the Ingestion Hub — your file is pre-loaded and ready to run.', timestamp: new Date(), isSuccess: true }]);
+        setDoneCount(c => c + 1);
+        setActiveNav('ingestion');
+        return;
+      }
       setExecutingAction(true);
       await new Promise(r => setTimeout(r, 2400));
       const resultFn = ACTION_RESULTS[saved.type] || (() => `✅ Action completed successfully!\n\n**${saved.title}**`);
@@ -1268,25 +2502,21 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
 
         {/* ── Settings panel ── */}
         {showSettings && (
-          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex-shrink-0">
-            <div className="flex items-end gap-4 flex-wrap">
-              <div className="flex-1 min-w-72">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">OpenAI API Key</label>
-                <div className="flex gap-2">
-                  <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
-                    placeholder="sk-proj-… paste your OpenAI key here"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
-                  <button onClick={() => setShowSettings(false)}
-                    className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition">Save</button>
-                </div>
-                <p className="text-xs text-amber-700 mt-1">
-                  🔒 Stored in memory only — never committed to code. For Vercel, set <code className="font-mono bg-amber-100 px-1 rounded">VITE_OPENAI_API_KEY</code> as an environment variable.
-                </p>
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-3 flex-shrink-0">
+            <div className="flex items-start gap-6 flex-wrap text-xs text-gray-600">
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">🔗 Backend</p>
+                <code className="bg-white border border-gray-200 px-2 py-1 rounded text-gray-800">{import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}</code>
+                <p className="text-gray-400 mt-1">Set <code className="bg-gray-100 px-1 rounded">VITE_BACKEND_URL</code> in your .env to change</p>
               </div>
-              <div className="text-xs">
-                <span className={`px-2 py-1 rounded-full font-semibold ${apiKey ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {apiKey ? '✓ Key ready' : '✗ No key set'}
-                </span>
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">🤖 AI Model</p>
+                <span className="bg-white border border-gray-200 px-2 py-1 rounded text-gray-800">GPT-4o via backend</span>
+                <p className="text-gray-400 mt-1">Set <code className="bg-gray-100 px-1 rounded">OPENAI_API_KEY</code> in <code className="bg-gray-100 px-1 rounded">backend/.env</code></p>
+              </div>
+              <div className="ml-auto">
+                <button onClick={() => setShowSettings(false)}
+                  className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition">Close</button>
               </div>
             </div>
           </div>
@@ -1419,13 +2649,30 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
             </div>
           )}
           <div className="flex gap-2 items-end">
-            <textarea ref={textareaRef} value={inputText} onChange={e => setInputText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
-              placeholder="Ask anything — create a pipeline, register metadata, trigger self-healing, deploy a model…"
-              rows={1}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm resize-none"
-              style={{ minHeight: '46px', maxHeight: '120px' }} />
+            <div className="flex-1">
+              {chatAttachFile && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-teal-50 border border-teal-200 rounded-lg text-xs text-teal-800 mb-1">
+                  <Paperclip className="w-3 h-3" />
+                  <span className="font-medium truncate max-w-48">{chatAttachFile.name}</span>
+                  <button onClick={() => setChatAttachFile(null)} className="ml-auto text-teal-500 hover:text-teal-700">×</button>
+                </div>
+              )}
+              <textarea ref={textareaRef} value={inputText} onChange={e => setInputText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
+                placeholder="Ask anything — create a pipeline, register metadata, trigger self-healing, deploy a model…"
+                rows={1}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm resize-none"
+                style={{ minHeight: '46px', maxHeight: '120px' }} />
+            </div>
+            {/* File attachment */}
+            <input ref={chatFileInputRef} type="file" accept=".csv,.tsv,.txt" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) setChatAttachFile(f); e.target.value = ''; }} />
+            <button onClick={() => chatFileInputRef.current?.click()}
+              title="Attach a CSV file for ingestion"
+              className={`p-2 rounded-lg transition flex-shrink-0 ${chatAttachFile ? 'bg-teal-100 text-teal-700' : 'text-gray-400 hover:text-teal-600 hover:bg-gray-100'}`}>
+              <Paperclip className="w-5 h-5" />
+            </button>
             {voiceOk && (
               <button onClick={isListening ? stopVoice : startVoice} disabled={isLoading}
                 className={`p-3 rounded-xl transition flex-shrink-0 ${isListening ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
@@ -1597,9 +2844,13 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
       case 'dashboard':
         return <DashboardView />;
       case 'ingestion':
-        return <IngestionHubView />;
+        // Called as a plain function (not JSX component) so React never
+        // unmounts/remounts it on parent re-renders — keeps input focus stable.
+        return IngestionHubView();
       case 'pipelines':
-        return <PipelinesView />;
+        // Called as a plain function (not JSX component) so React never
+        // unmounts/remounts it on parent re-renders — eliminates flicker.
+        return PipelinesView();
       case 'storage':
         return <StorageView />;
       case 'semantic':
@@ -1712,6 +2963,13 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
             </div>
           ))}
         </nav>
+
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 p-3 bg-white">
+          {sidebarOpen && (
+            <p className="text-xs text-gray-400 text-center">AgenticDT Platform</p>
+          )}
+        </div>
       </div>
 
       {/* Main Content */}
@@ -1722,4 +2980,8 @@ Be concise and professional. Use specific technology names: Confluent/MSK, Flink
       </div>
     </div>
   );
+}
+
+export default function App() {
+  return <AgenticDataPlatform />;
 }

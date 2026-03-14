@@ -60,12 +60,29 @@ if (process.env.OPENAI_API_KEY) {
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({
-  origin: (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(','),
-  methods: ['POST', 'GET', 'OPTIONS'],
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.warn(`[CORS] Blocked origin: ${origin}`);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-pipeline-passcode'],
-}));
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // handle preflight for all routes
 app.use(express.json({ limit: '2mb' }));
 
 // ── Middleware: 4-digit pipeline passcode ─────────────────────────────────────
@@ -105,6 +122,13 @@ app.get('/health', (req, res) => res.json({
   openai: !!openai,
   aws: isAwsConfigured(),
   awsRegion: process.env.AWS_REGION || 'us-east-1',
+}));
+
+// ── GET /cors-test — debug endpoint to confirm CORS is working from a browser
+app.get('/cors-test', (req, res) => res.json({
+  ok: true,
+  origin: req.headers.origin || 'no-origin',
+  allowedOrigins,
 }));
 
 // ── POST /api/chat ────────────────────────────────────────────────────────────
